@@ -55,27 +55,44 @@ class Fighter {
     this.vx = (Math.random() - 0.5) * 4;
     this.vy = (Math.random() - 0.5) * 4;
     this.radius = 30 + Math.random() * 20;
-    this.mass = this.radius * this.radius;
+    this.baseMass = this.radius * this.radius;
+    this.mass = this.baseMass;
     this.color = color;
     this.name = name;
     this.shapeType = shapeType; // 'circle', 'triangle', 'square'
     this.hp = 100;
     this.maxHp = 100;
-    this.attackCooldown = 0;
     this.target = null;
     this.ultimateCharge = 0;
-    this.cooldownTimers = {
-      attack: 0,
-      ability: 0,
+    
+    // Ability cooldowns (in frames)
+    this.cooldowns = {
+      skill1: 0,
+      skill2: 0,
       ultimate: 0
     };
+    
+    // Active effects (temporary physics modifiers)
+    this.activeEffects = [];
     
     // Visual effects
     this.trail = [];
     this.hitFlash = 0;
+    this.abilityFlash = 0; // Flash when using ability
   }
 
   update(fighters) {
+    // Update active effects (temporary physics modifiers)
+    this.updateActiveEffects();
+    
+    // Decrease cooldowns
+    if (this.cooldowns.skill1 > 0) this.cooldowns.skill1--;
+    if (this.cooldowns.skill2 > 0) this.cooldowns.skill2--;
+    if (this.cooldowns.ultimate > 0) this.cooldowns.ultimate--;
+    
+    // Decrease ability flash
+    if (this.abilityFlash > 0) this.abilityFlash--;
+    
     // Apply friction
     this.vx *= FRICTION;
     this.vy *= FRICTION;
@@ -151,6 +168,9 @@ class Fighter {
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
+      // AI ability decisions
+      this.makeAbilityDecision(dist, arenaLeft, arenaRight, arenaTop, arenaBottom);
+      
       // If near walls, prioritize repositioning
       const nearWall = avoidX !== 0 || avoidY !== 0;
       
@@ -220,6 +240,149 @@ class Fighter {
 
     // Cooldown
     if (this.attackCooldown > 0) this.attackCooldown--;
+  }
+
+  updateActiveEffects() {
+    this.activeEffects = this.activeEffects.filter(effect => {
+      effect.duration--;
+      if (effect.type === 'massMultiplier') {
+        this.mass = this.baseMass * effect.value;
+      } else if (effect.type === 'velocityCap') {
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > effect.value) {
+          const scale = effect.value / speed;
+          this.vx *= scale;
+          this.vy *= scale;
+        }
+      } else if (effect.type === 'orbitalForce') {
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > 0) {
+          const angle = Math.atan2(this.vy, this.vx);
+          const perpAngle = angle + Math.PI / 2;
+          this.vx += Math.cos(perpAngle) * effect.value;
+          this.vy += Math.sin(perpAngle) * effect.value;
+        }
+      }
+      return effect.duration > 0;
+    });
+    if (!this.activeEffects.find(e => e.type === 'massMultiplier')) {
+      this.mass = this.baseMass;
+    }
+  }
+
+  addEffect(type, value, duration) {
+    this.activeEffects.push({ type, value, duration });
+    this.abilityFlash = 10;
+  }
+
+  useSkill1() {
+    if (this.shapeType === 'circle') {
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        this.vx *= 1.8;
+        this.vy *= 1.8;
+        this.addEffect('momentumBoost', 1, 30);
+      }
+      this.cooldowns.skill1 = 120;
+    } else if (this.shapeType === 'triangle') {
+      if (this.target) {
+        const dx = this.target.x - this.x;
+        const dy = this.target.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+          this.vx += (dx / dist) * 12;
+          this.vy += (dy / dist) * 12;
+        }
+      }
+      this.cooldowns.skill1 = 150;
+    } else if (this.shapeType === 'square') {
+      this.vy += 10;
+      this.addEffect('massMultiplier', 2, 30);
+      this.cooldowns.skill1 = 120;
+    }
+  }
+
+  useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom) {
+    if (this.shapeType === 'circle') {
+      const wallMargin = 100;
+      const nearWall = this.x - this.radius < arenaLeft + wallMargin ||
+                       this.x + this.radius > arenaRight - wallMargin ||
+                       this.y - this.radius < arenaTop + wallMargin ||
+                       this.y + this.radius > arenaBottom - wallMargin;
+      if (nearWall) {
+        this.vx *= -1.2;
+        this.vy *= -1.2;
+        this.vy += (Math.random() - 0.5) * 4;
+      }
+      this.cooldowns.skill2 = 90;
+    } else if (this.shapeType === 'triangle') {
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        const angle = Math.atan2(this.vy, this.vx);
+        const perpAngle = angle + Math.PI / 2;
+        this.vx += Math.cos(perpAngle) * 8;
+        this.vy += Math.sin(perpAngle) * 8;
+      }
+      this.cooldowns.skill2 = 100;
+    } else if (this.shapeType === 'square') {
+      this.vx *= 0.3;
+      this.vy *= 0.3;
+      this.addEffect('massMultiplier', 3, 60);
+      this.cooldowns.skill2 = 120;
+    }
+  }
+
+  useUltimate() {
+    if (this.shapeType === 'circle') {
+      this.addEffect('orbitalForce', 0.8, 90);
+    } else if (this.shapeType === 'triangle') {
+      this.addEffect('velocityCap', 15, 120);
+    } else if (this.shapeType === 'square') {
+      this.addEffect('massMultiplier', 5, 180);
+      this.vx *= 0.5;
+      this.vy *= 0.5;
+    }
+    this.ultimateCharge = 0;
+    this.cooldowns.ultimate = 300;
+  }
+
+  makeAbilityDecision(distToTarget, arenaLeft, arenaRight, arenaTop, arenaBottom) {
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    const rand = Math.random();
+    
+    // Use ultimate if available (10% chance per frame when ready)
+    if (this.ultimateCharge >= 10 && this.cooldowns.ultimate === 0 && rand < 0.01) {
+      this.useUltimate();
+      return;
+    }
+    
+    // Skill 1 usage based on situation
+    if (this.cooldowns.skill1 === 0 && rand < 0.02) {
+      if (this.shapeType === 'circle' && speed > 5) {
+        // Circle: Rolling Charge when moving fast
+        this.useSkill1();
+      } else if (this.shapeType === 'triangle' && distToTarget > 150) {
+        // Triangle: Piercing Dash when far from target
+        this.useSkill1();
+      } else if (this.shapeType === 'square' && rand < 0.5) {
+        // Square: Fortress Slam occasionally
+        this.useSkill1();
+      }
+    }
+    
+    // Skill 2 usage based on situation
+    if (this.cooldowns.skill2 === 0 && rand < 0.02) {
+      if (this.shapeType === 'circle') {
+        // Circle: Rebound Feint near walls
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'triangle' && distToTarget < 100) {
+        // Triangle: Edge Step when close to target
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'square' && speed > 6) {
+        // Square: Anchor Brace when moving fast
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      }
+    }
   }
 
   attack(target) {
@@ -356,6 +519,19 @@ function handleCollisions(fighters) {
           if (collisionSpeed > 3) {
             const damage = Math.floor(collisionSpeed * 2) + Math.floor(Math.random() * 5);
             const luckRoll = Math.random();
+            
+            // Ultimate charge system
+            let chargeAmount = 1; // light hit default
+            if (damage > 10) chargeAmount = 2; // clean hit
+            if (collisionSpeed > 8) chargeAmount = 3; // wall combo
+            if (damage > 20) chargeAmount = 4; // counter hit
+            
+            // Award charge to the attacker
+            if (luckRoll < 0.5) {
+              f2.ultimateCharge = Math.min(f2.ultimateCharge + chargeAmount, 10);
+            } else {
+              f1.ultimateCharge = Math.min(f1.ultimateCharge + chargeAmount, 10);
+            }
             
             // Check for near-KO (low HP before damage)
             const f1NearKO = f1.hp < 25;
