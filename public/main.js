@@ -89,34 +89,52 @@ class Fighter {
     // Fixed base personalities per shape
     const basePersonalities = {
       circle: {
-        aggression: 7,
-        mobility: 8,
-        precision: 6,
-        chaos: 5,
-        greed: 6,
-        fear: 3,
-        revenge: 5,
-        skillDiscipline: 7
+        aggression: 7, mobility: 8, precision: 6, chaos: 5,
+        greed: 6, fear: 3, revenge: 5, skillDiscipline: 7
       },
       triangle: {
-        aggression: 8,
-        mobility: 9,
-        precision: 7,
-        chaos: 4,
-        greed: 7,
-        fear: 2,
-        revenge: 6,
-        skillDiscipline: 8
+        aggression: 8, mobility: 9, precision: 7, chaos: 4,
+        greed: 7, fear: 2, revenge: 6, skillDiscipline: 8
       },
       square: {
-        aggression: 5,
-        mobility: 4,
-        precision: 8,
-        chaos: 2,
-        greed: 4,
-        fear: 5,
-        revenge: 7,
-        skillDiscipline: 9
+        aggression: 5, mobility: 4, precision: 8, chaos: 2,
+        greed: 4, fear: 5, revenge: 7, skillDiscipline: 9
+      },
+      oval: {
+        aggression: 6, mobility: 10, precision: 5, chaos: 4,
+        greed: 5, fear: 4, revenge: 4, skillDiscipline: 6
+      },
+      hexagon: {
+        aggression: 4, mobility: 5, precision: 9, chaos: 3,
+        greed: 3, fear: 6, revenge: 8, skillDiscipline: 8
+      },
+      spiral: {
+        aggression: 5, mobility: 7, precision: 4, chaos: 9,
+        greed: 5, fear: 4, revenge: 5, skillDiscipline: 5
+      },
+      rhombus: {
+        aggression: 6, mobility: 6, precision: 7, chaos: 6,
+        greed: 8, fear: 3, revenge: 9, skillDiscipline: 7
+      },
+      star: {
+        aggression: 10, mobility: 7, precision: 5, chaos: 7,
+        greed: 9, fear: 1, revenge: 7, skillDiscipline: 6
+      },
+      heart: {
+        aggression: 3, mobility: 8, precision: 6, chaos: 3,
+        greed: 2, fear: 8, revenge: 4, skillDiscipline: 7
+      },
+      diamond: {
+        aggression: 7, mobility: 6, precision: 10, chaos: 2,
+        greed: 6, fear: 4, revenge: 6, skillDiscipline: 8
+      },
+      crescent: {
+        aggression: 6, mobility: 8, precision: 6, chaos: 5,
+        greed: 5, fear: 5, revenge: 5, skillDiscipline: 6
+      },
+      dodecahedron: {
+        aggression: 6, mobility: 6, precision: 7, chaos: 4,
+        greed: 5, fear: 5, revenge: 5, skillDiscipline: 10
       }
     };
     
@@ -225,6 +243,9 @@ class Fighter {
       
       // AI ability decisions
       this.makeAbilityDecision(dist, arenaLeft, arenaRight, arenaTop, arenaBottom);
+      
+      // Apply shape-specific behavioral biases
+      this.applyShapeBias(dx, dy, dist, arenaLeft, arenaRight, arenaTop, arenaBottom, avoidX, avoidY);
       
       const p = this.personality;
       const hpPercent = this.hp / this.maxHp;
@@ -460,13 +481,28 @@ class Fighter {
       const aggressionBonus = p.aggression / 10;
       
       if (this.shapeType === 'circle' && speed > 5 * (1 - p.mobility / 20)) {
-        // Circle: Rolling Charge when moving fast (mobility lowers threshold)
         this.useSkill1();
       } else if (this.shapeType === 'triangle' && distToTarget > 150 * (1 - p.greed / 20)) {
-        // Triangle: Piercing Dash when far from target (greed lowers distance threshold)
         this.useSkill1();
       } else if (this.shapeType === 'square' && rand < 0.5 * aggressionBonus) {
-        // Square: Fortress Slam (aggression increases usage)
+        this.useSkill1();
+      } else if (this.shapeType === 'oval' && speed < 8) {
+        this.useSkill1();
+      } else if (this.shapeType === 'hexagon' && distToTarget < 80) {
+        this.useSkill1();
+      } else if (this.shapeType === 'spiral' && rand < 0.03) {
+        this.useSkill1();
+      } else if (this.shapeType === 'rhombus' && distToTarget > 120) {
+        this.useSkill1();
+      } else if (this.shapeType === 'star' && distToTarget < 200) {
+        this.useSkill1();
+      } else if (this.shapeType === 'heart' && this.hp < 50) {
+        this.useSkill1();
+      } else if (this.shapeType === 'diamond' && distToTarget > 100) {
+        this.useSkill1();
+      } else if (this.shapeType === 'crescent' && rand < 0.025) {
+        this.useSkill1();
+      } else if (this.shapeType === 'dodecahedron' && rand < 0.015) {
         this.useSkill1();
       }
     }
@@ -474,15 +510,140 @@ class Fighter {
     // Skill 2 usage based on situation and personality
     if (this.cooldowns.skill2 === 0 && rand < baseChance) {
       if (this.shapeType === 'circle') {
-        // Circle: Rebound Feint near walls
         this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
       } else if (this.shapeType === 'triangle' && distToTarget < 100 * (1 + p.greed / 10)) {
-        // Triangle: Edge Step when close to target (greed increases range)
         this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
       } else if (this.shapeType === 'square' && speed > 6 * (1 - p.fear / 20)) {
-        // Square: Anchor Brace when moving fast (fear lowers threshold)
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'oval') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'hexagon') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'spiral') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'rhombus') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'star') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'heart') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'diamond') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'crescent') {
+        this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      } else if (this.shapeType === 'dodecahedron') {
         this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
       }
+    }
+  }
+
+  applyShapeBias(dx, dy, dist, arenaLeft, arenaRight, arenaTop, arenaBottom, avoidX, avoidY) {
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    
+    switch (this.shapeType) {
+      case 'circle':
+        // Prefers momentum and wall usage
+        if (avoidX !== 0 || avoidY !== 0) {
+          this.vx += avoidX * 0.3;
+          this.vy += avoidY * 0.3;
+        }
+        break;
+        
+      case 'triangle':
+        // Burst engage then disengage
+        if (dist < 100 && speed > 5) {
+          this.vx -= dx / dist * 0.5;
+          this.vy -= dy / dist * 0.5;
+        }
+        break;
+        
+      case 'square':
+        // Corner pressure and retaliation
+        if (avoidX !== 0 || avoidY !== 0) {
+          this.vx -= avoidX * 0.2;
+          this.vy -= avoidY * 0.2;
+        }
+        break;
+        
+      case 'oval':
+        // Constant movement
+        if (speed < 6) {
+          const angle = Math.atan2(this.vy, this.vx);
+          this.vx += Math.cos(angle) * 0.3;
+          this.vy += Math.sin(angle) * 0.3;
+        }
+        break;
+        
+      case 'hexagon':
+        // Defensive and reactive
+        if (dist < 120) {
+          this.vx -= dx / dist * 0.3;
+          this.vy -= dy / dist * 0.3;
+        }
+        break;
+        
+      case 'spiral':
+        // Controlled randomness
+        if (Math.random() < 0.05) {
+          const angle = Math.random() * Math.PI * 2;
+          this.vx += Math.cos(angle) * 1.5;
+          this.vy += Math.sin(angle) * 1.5;
+        }
+        break;
+        
+      case 'rhombus':
+        // Bait and counter
+        if (dist > 150) {
+          this.vx += dx / dist * 0.2;
+          this.vy += dy / dist * 0.2;
+        }
+        break;
+        
+      case 'star':
+        // Relentless aggression
+        this.vx += dx / dist * 0.3;
+        this.vy += dy / dist * 0.3;
+        break;
+        
+      case 'heart':
+        // Evasive survival
+        if (this.hp < 60) {
+          this.vx -= dx / dist * 0.4;
+          this.vy -= dy / dist * 0.4;
+        }
+        break;
+        
+      case 'diamond':
+        // Predictive interception
+        if (this.target) {
+          const predX = this.target.x + this.target.vx * 5;
+          const predY = this.target.y + this.target.vy * 5;
+          const predDx = predX - this.x;
+          const predDy = predY - this.y;
+          const predDist = Math.sqrt(predDx * predDx + predDy * predDy);
+          if (predDist > 0) {
+            this.vx += (predDx / predDist) * 0.2;
+            this.vy += (predDy / predDist) * 0.2;
+          }
+        }
+        break;
+        
+      case 'crescent':
+        // Curved movement patterns
+        if (speed > 0) {
+          const angle = Math.atan2(this.vy, this.vx);
+          const curveAngle = angle + 0.1;
+          this.vx += Math.cos(curveAngle) * 0.15;
+          this.vy += Math.sin(curveAngle) * 0.15;
+        }
+        break;
+        
+      case 'dodecahedron':
+        // Adaptive behavior mid-fight
+        if (this.hp < 50) {
+          this.personality.aggression = Math.min(10, this.personality.aggression + 0.01);
+        }
+        break;
     }
   }
 
@@ -548,6 +709,96 @@ class Fighter {
       ctx.fill();
     } else if (this.shapeType === 'square') {
       ctx.fillRect(x - size, y - size, size * 2, size * 2);
+    } else if (this.shapeType === 'oval') {
+      ctx.beginPath();
+      ctx.ellipse(x, y, size * 1.3, size * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.shapeType === 'hexagon') {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        const px = x + size * Math.cos(angle);
+        const py = y + size * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else if (this.shapeType === 'spiral') {
+      ctx.beginPath();
+      for (let i = 0; i < 50; i++) {
+        const angle = i * 0.3;
+        const r = (i / 50) * size;
+        const px = x + r * Math.cos(angle);
+        const py = y + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (this.shapeType === 'rhombus') {
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size * 0.7, y);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x - size * 0.7, y);
+      ctx.closePath();
+      ctx.fill();
+    } else if (this.shapeType === 'star') {
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const outerAngle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const innerAngle = outerAngle + Math.PI / 5;
+        const outerX = x + size * Math.cos(outerAngle);
+        const outerY = y + size * Math.sin(outerAngle);
+        const innerX = x + size * 0.4 * Math.cos(innerAngle);
+        const innerY = y + size * 0.4 * Math.sin(innerAngle);
+        if (i === 0) ctx.moveTo(outerX, outerY);
+        else ctx.lineTo(outerX, outerY);
+        ctx.lineTo(innerX, innerY);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else if (this.shapeType === 'heart') {
+      ctx.beginPath();
+      ctx.moveTo(x, y + size * 0.3);
+      ctx.bezierCurveTo(x - size, y - size * 0.5, x - size * 0.5, y - size, x, y - size * 0.3);
+      ctx.bezierCurveTo(x + size * 0.5, y - size, x + size, y - size * 0.5, x, y + size * 0.3);
+      ctx.fill();
+    } else if (this.shapeType === 'diamond') {
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size * 0.6, y - size * 0.3);
+      ctx.lineTo(x + size * 0.6, y + size * 0.3);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x - size * 0.6, y + size * 0.3);
+      ctx.lineTo(x - size * 0.6, y - size * 0.3);
+      ctx.closePath();
+      ctx.fill();
+    } else if (this.shapeType === 'crescent') {
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(x + size * 0.4, y, size * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+    } else if (this.shapeType === 'dodecahedron') {
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const angle = (Math.PI * 2 / 12) * i;
+        const px = x + size * Math.cos(angle);
+        const py = y + size * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
     }
     
     ctx.globalAlpha = 1;
@@ -570,6 +821,86 @@ class Fighter {
       ctx.stroke();
     } else if (this.shapeType === 'square') {
       ctx.strokeRect(x - size, y - size, size * 2, size * 2);
+    } else if (this.shapeType === 'oval') {
+      ctx.beginPath();
+      ctx.ellipse(x, y, size * 1.3, size * 0.8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (this.shapeType === 'hexagon') {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        const px = x + size * Math.cos(angle);
+        const py = y + size * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    } else if (this.shapeType === 'spiral') {
+      ctx.beginPath();
+      for (let i = 0; i < 50; i++) {
+        const angle = i * 0.3;
+        const r = (i / 50) * size;
+        const px = x + r * Math.cos(angle);
+        const py = y + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    } else if (this.shapeType === 'rhombus') {
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size * 0.7, y);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x - size * 0.7, y);
+      ctx.closePath();
+      ctx.stroke();
+    } else if (this.shapeType === 'star') {
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const outerAngle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const innerAngle = outerAngle + Math.PI / 5;
+        const outerX = x + size * Math.cos(outerAngle);
+        const outerY = y + size * Math.sin(outerAngle);
+        const innerX = x + size * 0.4 * Math.cos(innerAngle);
+        const innerY = y + size * 0.4 * Math.sin(innerAngle);
+        if (i === 0) ctx.moveTo(outerX, outerY);
+        else ctx.lineTo(outerX, outerY);
+        ctx.lineTo(innerX, innerY);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    } else if (this.shapeType === 'heart') {
+      ctx.beginPath();
+      ctx.moveTo(x, y + size * 0.3);
+      ctx.bezierCurveTo(x - size, y - size * 0.5, x - size * 0.5, y - size, x, y - size * 0.3);
+      ctx.bezierCurveTo(x + size * 0.5, y - size, x + size, y - size * 0.5, x, y + size * 0.3);
+      ctx.stroke();
+    } else if (this.shapeType === 'diamond') {
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size * 0.6, y - size * 0.3);
+      ctx.lineTo(x + size * 0.6, y + size * 0.3);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x - size * 0.6, y + size * 0.3);
+      ctx.lineTo(x - size * 0.6, y - size * 0.3);
+      ctx.closePath();
+      ctx.stroke();
+    } else if (this.shapeType === 'crescent') {
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (this.shapeType === 'dodecahedron') {
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const angle = (Math.PI * 2 / 12) * i;
+        const px = x + size * Math.cos(angle);
+        const py = y + size * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
     }
   }
 }
@@ -679,11 +1010,20 @@ const fighters = [];
 const fighterConfigs = [
   { id: 1, color: '#FF5733', name: 'Alpha', shapeType: 'circle' },
   { id: 2, color: '#33FF57', name: 'Beta', shapeType: 'triangle' },
-  { id: 3, color: '#3357FF', name: 'Gamma', shapeType: 'square' }
+  { id: 3, color: '#3357FF', name: 'Gamma', shapeType: 'square' },
+  { id: 4, color: '#FF33A8', name: 'Delta', shapeType: 'oval' },
+  { id: 5, color: '#33FFF5', name: 'Epsilon', shapeType: 'hexagon' },
+  { id: 6, color: '#F5FF33', name: 'Zeta', shapeType: 'spiral' },
+  { id: 7, color: '#FF8C33', name: 'Eta', shapeType: 'rhombus' },
+  { id: 8, color: '#FF3333', name: 'Theta', shapeType: 'star' },
+  { id: 9, color: '#FF33FF', name: 'Iota', shapeType: 'heart' },
+  { id: 10, color: '#33FFFF', name: 'Kappa', shapeType: 'diamond' },
+  { id: 11, color: '#8C33FF', name: 'Lambda', shapeType: 'crescent' },
+  { id: 12, color: '#33FF8C', name: 'Mu', shapeType: 'dodecahedron' }
 ];
 
 // Track selected fighters
-const selectedFighters = new Set([1, 2, 3]); // All selected by default
+const selectedFighters = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); // All selected by default
 
 function getArenaBounds() {
   const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
