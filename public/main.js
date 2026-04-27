@@ -22,7 +22,7 @@ resize();
 window.addEventListener('resize', resize);
 
 // Intro animation state
-let introState = 'selection'; // 'selection', 'ready', 'fight', 'battle'
+let introState = 'selection'; // 'selection', 'ready', 'fight', 'battle', 'replay', 'ko'
 let introTimer = 0;
 const READY_DURATION = 60; // frames
 const FIGHT_DURATION = 30; // frames
@@ -31,6 +31,13 @@ const FIGHT_DURATION = 30; // frames
 let hitPauseTimer = 0;
 const HIT_PAUSE_DURATION = 8; // frames of slow motion
 let screenShake = { x: 0, y: 0, intensity: 0 };
+
+// Replay system
+const REPLAY_DURATION = 180; // 3 seconds at 60fps
+let replayBuffer = [];
+let replayIndex = 0;
+let koTimer = 0;
+const KO_PAUSE_DURATION = 120; // 2 seconds dramatic pause
 
 // Physics constants
 const FRICTION = 0.98;
@@ -335,7 +342,7 @@ function handleCollisions(fighters) {
         if (dvn > 0) {
           const m1 = f1.mass;
           const m2 = f2.mass;
-          const restitution = ELASTICITY;
+          const restitution = 1.5; // High bounce to send fighters to walls
           
           const impulse = (2 * dvn) / (m1 + m2);
           
@@ -350,8 +357,12 @@ function handleCollisions(fighters) {
             const damage = Math.floor(collisionSpeed * 2) + Math.floor(Math.random() * 5);
             const luckRoll = Math.random();
             
-            // Trigger hit pause on heavy hits
-            if (damage > 15) {
+            // Check for near-KO (low HP before damage)
+            const f1NearKO = f1.hp < 25;
+            const f2NearKO = f2.hp < 25;
+            
+            // Trigger hit pause on heavy hits or near-KO
+            if (damage > 15 || f1NearKO || f2NearKO) {
               hitPauseTimer = HIT_PAUSE_DURATION;
             }
             
@@ -365,9 +376,17 @@ function handleCollisions(fighters) {
             if (luckRoll < 0.5) {
               f1.hp -= damage;
               f1.hitFlash = 15;
+              // Check for KO
+              if (f1.hp <= 0 && introState === 'battle') {
+                triggerKO(f2);
+              }
             } else {
               f2.hp -= damage;
               f2.hitFlash = 15;
+              // Check for KO
+              if (f2.hp <= 0 && introState === 'battle') {
+                triggerKO(f1);
+              }
             }
           }
         }
@@ -395,6 +414,7 @@ function getArenaBounds() {
 
 function spawnFighters() {
   fighters.length = 0; // Clear existing fighters
+  replayBuffer = []; // Clear replay buffer
   for (const config of fighterConfigs) {
     if (selectedFighters.has(config.id)) {
       const { arenaLeft, arenaTop } = getArenaBounds();
@@ -403,6 +423,33 @@ function spawnFighters() {
       fighters.push(new Fighter(config.id, x, y, config.color, config.name, config.shapeType));
     }
   }
+}
+
+// Record game state for replay
+function recordState() {
+  const state = fighters.map(f => ({
+    x: f.x,
+    y: f.y,
+    vx: f.vx,
+    vy: f.vy,
+    hp: f.hp,
+    hitFlash: f.hitFlash,
+    trail: [...f.trail]
+  }));
+  replayBuffer.push(state);
+  if (replayBuffer.length > REPLAY_DURATION) {
+    replayBuffer.shift();
+  }
+}
+
+// Trigger KO sequence
+function triggerKO(winner) {
+  introState = 'ko';
+  koTimer = 0;
+  screenShake.intensity = 20; // Strong shake on KO
+  screenShake.x = (Math.random() - 0.5) * screenShake.intensity;
+  screenShake.y = (Math.random() - 0.5) * screenShake.intensity;
+  window.koWinner = winner;
 }
 
 // UI elements for selection
@@ -583,6 +630,76 @@ function gameLoop() {
     if (introTimer >= FIGHT_DURATION) {
       introState = 'battle';
     }
+  } else if (introState === 'ko') {
+    // KO dramatic pause
+    koTimer++;
+    
+    // Draw fighters frozen
+    for (let fighter of fighters) {
+      if (fighter.hp > 0) {
+        fighter.draw();
+      }
+    }
+    
+    // Draw FINISH! text
+    ctx.fillStyle = '#ff4444';
+    ctx.font = 'bold 96px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FINISH!', canvas.width / 2, canvas.height / 2);
+    
+    // Draw winner name
+    if (window.koWinner) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 48px Arial';
+      ctx.fillText(`${window.koWinner.name} WINS!`, canvas.width / 2, canvas.height / 2 + 80);
+    }
+    
+    // After KO pause, start replay
+    if (koTimer >= KO_PAUSE_DURATION) {
+      introState = 'replay';
+      replayIndex = 0;
+    }
+  } else if (introState === 'replay') {
+    // Replay mode
+    if (replayIndex < replayBuffer.length) {
+      const state = replayBuffer[replayIndex];
+      
+      // Restore and draw fighters from replay state
+      for (let i = 0; i < fighters.length && i < state.length; i++) {
+        fighters[i].x = state[i].x;
+        fighters[i].y = state[i].y;
+        fighters[i].hp = state[i].hp;
+        fighters[i].hitFlash = state[i].hitFlash;
+        fighters[i].trail = state[i].trail;
+        fighters[i].draw();
+      }
+      
+      // Draw REPLAY indicator
+      ctx.fillStyle = '#ffff00';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('▶ REPLAY', arenaLeft + 10, arenaTop + 10);
+      
+      replayIndex++;
+    } else {
+      // Replay finished, show final screen
+      const aliveFighters = fighters.filter(f => f.hp > 0);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      if (aliveFighters.length === 1) {
+        ctx.fillText(`${aliveFighters[0].name} WINS!`, canvas.width / 2, canvas.height / 2);
+      } else {
+        ctx.fillText('DRAW!', canvas.width / 2, canvas.height / 2);
+      }
+      
+      ctx.font = 'bold 24px Arial';
+      ctx.fillText('Refresh to restart', canvas.width / 2, canvas.height / 2 + 50);
+    }
   } else {
     // Battle mode
     const aliveFighters = fighters.filter(f => f.hp > 0);
@@ -603,6 +720,9 @@ function gameLoop() {
       ctx.font = 'bold 24px Arial';
       ctx.fillText('Refresh to restart', canvas.width / 2, canvas.height / 2 + 50);
     } else {
+      // Record state for replay
+      recordState();
+      
       // Handle hit pause (slow motion)
       if (hitPauseTimer > 0) {
         hitPauseTimer--;
