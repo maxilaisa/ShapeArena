@@ -274,8 +274,13 @@ class Fighter {
           // Precision: aim toward predicted enemy position
           let targetX = this.target.x;
           let targetY = this.target.y;
-          if (p.precision > 5) {
-            const predictionFactor = (p.precision - 5) / 20;
+          
+          // Check for predictionBoost effect
+          const predictionBoostEffect = this.activeEffects.find(e => e.type === 'predictionBoost');
+          const boostMultiplier = predictionBoostEffect ? predictionBoostEffect.value : 1;
+          
+          if (p.precision > 5 || predictionBoostEffect) {
+            const predictionFactor = ((p.precision - 5) / 20) * boostMultiplier;
             targetX += this.target.vx * predictionFactor * 10;
             targetY += this.target.vy * predictionFactor * 10;
           }
@@ -323,30 +328,33 @@ class Fighter {
     this.y += this.vy;
 
     // Boundary collision - enhanced bouncing
+    const ricochetEffect = this.activeEffects.find(e => e.type === 'ricochet');
+    const bounceMultiplier = ricochetEffect ? 2.0 : 1.2;
+    
     if (this.x - this.radius < arenaLeft) {
       this.x = arenaLeft + this.radius;
-      this.vx *= -1.2;
+      this.vx *= -bounceMultiplier;
       if (Math.abs(this.vx) < MIN_SPEED) {
         this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
       }
     }
     if (this.x + this.radius > arenaRight) {
       this.x = arenaRight - this.radius;
-      this.vx *= -1.2;
+      this.vx *= -bounceMultiplier;
       if (Math.abs(this.vx) < MIN_SPEED) {
         this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
       }
     }
     if (this.y - this.radius < arenaTop) {
       this.y = arenaTop + this.radius;
-      this.vy *= -1.2;
+      this.vy *= -bounceMultiplier;
       if (Math.abs(this.vy) < MIN_SPEED) {
         this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
       }
     }
     if (this.y + this.radius > arenaBottom) {
       this.y = arenaBottom - this.radius;
-      this.vy *= -1.2;
+      this.vy *= -bounceMultiplier;
       if (Math.abs(this.vy) < MIN_SPEED) {
         this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
       }
@@ -376,6 +384,38 @@ class Fighter {
           this.vx += Math.cos(perpAngle) * effect.value;
           this.vy += Math.sin(perpAngle) * effect.value;
         }
+      } else if (effect.type === 'speedBoost') {
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > 0) {
+          this.vx *= (1 + effect.value * 0.01);
+          this.vy *= (1 + effect.value * 0.01);
+        }
+      } else if (effect.type === 'chaosSpin') {
+        const angle = Math.random() * Math.PI * 2;
+        this.vx += Math.cos(angle) * effect.value;
+        this.vy += Math.sin(angle) * effect.value;
+      } else if (effect.type === 'attraction') {
+        // Applied in collision handling
+      } else if (effect.type === 'phaseShift') {
+        // Applied in collision handling
+      } else if (effect.type === 'ricochet') {
+        // Applied in wall collision
+      } else if (effect.type === 'regeneration') {
+        if (this.hp < this.maxHp) {
+          this.hp = Math.min(this.maxHp, this.hp + effect.value);
+        }
+      } else if (effect.type === 'predictionBoost') {
+        // Applied in AI movement
+      } else if (effect.type === 'curveForce') {
+        if (this.vx !== 0 || this.vy !== 0) {
+          const angle = Math.atan2(this.vy, this.vx);
+          const curveAngle = angle + effect.value;
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          this.vx = Math.cos(curveAngle) * speed;
+          this.vy = Math.sin(curveAngle) * speed;
+        }
+      } else if (effect.type === 'adaptiveStats') {
+        // Temporary stat boost handled in personality
       }
       return effect.duration > 0;
     });
@@ -413,6 +453,89 @@ class Fighter {
       this.vy += 10;
       this.addEffect('massMultiplier', 2, 30);
       this.cooldowns.skill1 = 120;
+    } else if (this.shapeType === 'oval') {
+      // Dash boost - amplify speed
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        this.vx *= 2.0;
+        this.vy *= 2.0;
+        this.addEffect('speedBoost', 15, 45);
+      }
+      this.cooldowns.skill1 = 100;
+    } else if (this.shapeType === 'hexagon') {
+      // Precision strike - aim toward target with force
+      if (this.target) {
+        const dx = this.target.x - this.x;
+        const dy = this.target.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+          this.vx += (dx / dist) * 8;
+          this.vy += (dy / dist) * 8;
+          this.addEffect('predictionBoost', 1, 60);
+        }
+      }
+      this.cooldowns.skill1 = 130;
+    } else if (this.shapeType === 'spiral') {
+      // Chaos spin - random rotation force
+      const angle = Math.random() * Math.PI * 2;
+      this.vx += Math.cos(angle) * 10;
+      this.vy += Math.sin(angle) * 10;
+      this.addEffect('chaosSpin', 2, 30);
+      this.cooldowns.skill1 = 90;
+    } else if (this.shapeType === 'rhombus') {
+      // Lure - attract nearby fighters
+      this.addEffect('attraction', 200, 120);
+      this.cooldowns.skill1 = 140;
+    } else if (this.shapeType === 'star') {
+      // Star burst - explosive speed
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        this.vx *= 2.5;
+        this.vy *= 2.5;
+      }
+      this.cooldowns.skill1 = 110;
+    } else if (this.shapeType === 'heart') {
+      // Heartbeat - rhythmic movement pattern
+      const angle = Math.atan2(this.vy, this.vx);
+      this.vx = Math.cos(angle) * 6;
+      this.vy = Math.sin(angle) * 6;
+      this.cooldowns.skill1 = 95;
+    } else if (this.shapeType === 'diamond') {
+      // Diamond cut - precise velocity adjustment
+      if (this.target) {
+        const dx = this.target.x - this.x;
+        const dy = this.target.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+          const predX = this.target.x + this.target.vx * 8;
+          const predY = this.target.y + this.target.vy * 8;
+          const predDx = predX - this.x;
+          const predDy = predY - this.y;
+          const predDist = Math.sqrt(predDx * predDx + predDy * predDy);
+          if (predDist > 0) {
+            this.vx += (predDx / predDist) * 10;
+            this.vy += (predDy / predDist) * 10;
+          }
+        }
+      }
+      this.cooldowns.skill1 = 120;
+    } else if (this.shapeType === 'crescent') {
+      // Crescent dash - curved acceleration
+      if (this.vx !== 0 || this.vy !== 0) {
+        const angle = Math.atan2(this.vy, this.vx);
+        const curveAngle = angle + 0.3;
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        this.vx = Math.cos(curveAngle) * speed * 1.5;
+        this.vy = Math.sin(curveAngle) * speed * 1.5;
+        this.addEffect('curveForce', 0.05, 40);
+      }
+      this.cooldowns.skill1 = 105;
+    } else if (this.shapeType === 'dodecahedron') {
+      // Face shift - random small stat boost
+      const stat = ['aggression', 'mobility', 'precision'][Math.floor(Math.random() * 3)];
+      this.personality[stat] = Math.min(10, this.personality[stat] + 2);
+      this.addEffect('adaptiveStats', 1, 180);
+      this.cooldowns.skill1 = 150;
     }
   }
 
@@ -443,6 +566,70 @@ class Fighter {
       this.vy *= 0.3;
       this.addEffect('massMultiplier', 3, 60);
       this.cooldowns.skill2 = 120;
+    } else if (this.shapeType === 'oval') {
+      // Evasive drift - perpendicular force
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        const angle = Math.atan2(this.vy, this.vx);
+        const driftAngle = angle + Math.PI / 2;
+        this.vx += Math.cos(driftAngle) * 6;
+        this.vy += Math.sin(driftAngle) * 6;
+      }
+      this.cooldowns.skill2 = 85;
+    } else if (this.shapeType === 'hexagon') {
+      // Defensive stance - mass increase
+      this.addEffect('massMultiplier', 2.5, 90);
+      this.cooldowns.skill2 = 110;
+    } else if (this.shapeType === 'spiral') {
+      // Warp - teleport short distance
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        const angle = Math.atan2(this.vy, this.vx);
+        this.x += Math.cos(angle) * 50;
+        this.y += Math.sin(angle) * 50;
+      }
+      this.cooldowns.skill2 = 130;
+    } else if (this.shapeType === 'rhombus') {
+      // Counter thrust - speed boost
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        this.vx *= 1.6;
+        this.vy *= 1.6;
+      }
+      this.cooldowns.skill2 = 95;
+    } else if (this.shapeType === 'star') {
+      // Meteor - heavy mass slam
+      this.addEffect('massMultiplier', 4, 45);
+      this.vy += 8;
+      this.cooldowns.skill2 = 115;
+    } else if (this.shapeType === 'heart') {
+      // Shield - temporary mass increase
+      this.addEffect('massMultiplier', 2, 75);
+      this.cooldowns.skill2 = 100;
+    } else if (this.shapeType === 'diamond') {
+      // Refract - sharp direction change
+      if (this.vx !== 0 || this.vy !== 0) {
+        const angle = Math.atan2(this.vy, this.vx);
+        const newAngle = angle + (Math.random() - 0.5) * 1.5;
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        this.vx = Math.cos(newAngle) * speed;
+        this.vy = Math.sin(newAngle) * speed;
+      }
+      this.cooldowns.skill2 = 90;
+    } else if (this.shapeType === 'crescent') {
+      // Moon phase - periodic mass change
+      const phase = Math.sin(Date.now() / 500);
+      this.addEffect('massMultiplier', 1.5 + phase * 0.5, 60);
+      this.cooldowns.skill2 = 100;
+    } else if (this.shapeType === 'dodecahedron') {
+      // Geometric defense - balanced mass and speed
+      this.addEffect('massMultiplier', 1.8, 80);
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        this.vx *= 1.2;
+        this.vy *= 1.2;
+      }
+      this.cooldowns.skill2 = 125;
     }
   }
 
@@ -455,6 +642,54 @@ class Fighter {
       this.addEffect('massMultiplier', 5, 180);
       this.vx *= 0.5;
       this.vy *= 0.5;
+    } else if (this.shapeType === 'oval') {
+      // Phase shift - pass through fighters briefly
+      this.addEffect('phaseShift', 1, 120);
+      this.vx *= 1.5;
+      this.vy *= 1.5;
+    } else if (this.shapeType === 'hexagon') {
+      // Perfect guard - temporary invincibility (mass boost)
+      this.addEffect('massMultiplier', 8, 150);
+      this.vx *= 0.3;
+      this.vy *= 0.3;
+    } else if (this.shapeType === 'spiral') {
+      // Entropy field - random forces
+      this.addEffect('chaosSpin', 4, 180);
+      this.addEffect('speedBoost', 25, 180);
+    } else if (this.shapeType === 'rhombus') {
+      // Vengeance - bonus damage against last attacker
+      this.addEffect('massMultiplier', 3, 120);
+      this.vx *= 1.8;
+      this.vy *= 1.8;
+    } else if (this.shapeType === 'star') {
+      // Supernova - massive speed boost
+      this.vx *= 3.0;
+      this.vy *= 3.0;
+      this.addEffect('speedBoost', 30, 120);
+      this.addEffect('massMultiplier', 2, 120);
+    } else if (this.shapeType === 'heart') {
+      // Survival - heal and speed at low HP
+      this.hp = Math.min(this.maxHp, this.hp + 30);
+      this.addEffect('regeneration', 0.5, 180);
+      this.addEffect('speedBoost', 20, 180);
+    } else if (this.shapeType === 'diamond') {
+      // Perfect aim - track target precisely
+      this.addEffect('predictionBoost', 2, 150);
+      this.addEffect('velocityCap', 20, 150);
+    } else if (this.shapeType === 'crescent') {
+      // Eclipse - darkness + speed
+      this.vx *= 2.0;
+      this.vy *= 2.0;
+      this.addEffect('curveForce', 0.1, 150);
+      this.addEffect('speedBoost', 20, 150);
+    } else if (this.shapeType === 'dodecahedron') {
+      // Perfect form - all stats boosted
+      this.personality.aggression = Math.min(10, this.personality.aggression + 3);
+      this.personality.mobility = Math.min(10, this.personality.mobility + 3);
+      this.personality.precision = Math.min(10, this.personality.precision + 3);
+      this.addEffect('massMultiplier', 2, 200);
+      this.addEffect('speedBoost', 15, 200);
+      this.addEffect('adaptiveStats', 1, 200);
     }
     this.ultimateCharge = 0;
     this.cooldowns.ultimate = 300;
@@ -665,6 +900,94 @@ class Fighter {
   }
 
   draw() {
+    // Draw ability visual effects based on active effects
+    for (const effect of this.activeEffects) {
+      if (effect.type === 'speedBoost') {
+        // Speed trail effect
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.vx * 3, this.y - this.vy * 3);
+        ctx.lineTo(this.x, this.y);
+        ctx.stroke();
+        ctx.restore();
+      } else if (effect.type === 'chaosSpin') {
+        // Chaos spiral effect
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#ff00ff';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+          const angle = (Date.now() / 100) + (i * Math.PI * 2 / 3);
+          const r = this.radius + 10 + i * 5;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, r, angle, angle + Math.PI);
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (effect.type === 'attraction') {
+        // Attraction field effect
+        ctx.save();
+        ctx.globalAlpha = 0.2;
+        ctx.fillStyle = '#ffff00';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, effect.value, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (effect.type === 'phaseShift') {
+        // Phase shift ghost effect
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        this.drawShape(this.x + (Math.random() - 0.5) * 10, this.y + (Math.random() - 0.5) * 10, this.radius, this.color, 0.5);
+        ctx.restore();
+      } else if (effect.type === 'ricochet') {
+        // Ricochet glow
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 4;
+        this.drawShapeOutline(this.x, this.y, this.radius + 8, '#00ffff', 3);
+        ctx.restore();
+      } else if (effect.type === 'regeneration') {
+        // Regeneration heal effect
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#00ff00';
+        const healSize = this.radius + 5 + Math.sin(Date.now() / 100) * 3;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, healSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (effect.type === 'curveForce') {
+        // Curve trail effect
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#ff8800';
+        ctx.lineWidth = 2;
+        const angle = Math.atan2(this.vy, this.vx);
+        for (let i = 1; i <= 5; i++) {
+          const trailAngle = angle - effect.value * i * 10;
+          const trailX = this.x - Math.cos(trailAngle) * i * 8;
+          const trailY = this.y - Math.sin(trailAngle) * i * 8;
+          ctx.beginPath();
+          ctx.arc(trailX, trailY, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      } else if (effect.type === 'adaptiveStats') {
+        // Adaptive glow
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        const hue = (Date.now() / 20) % 360;
+        ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+        ctx.lineWidth = 3;
+        this.drawShapeOutline(this.x, this.y, this.radius + 10, `hsl(${hue}, 100%, 50%)`, 3);
+        ctx.restore();
+      }
+    }
+
     // Draw motion trail
     for (let i = 0; i < this.trail.length; i++) {
       const t = this.trail[i];
@@ -907,10 +1230,38 @@ class Fighter {
 
 // Collision detection and response
 function handleCollisions(fighters) {
+  // Handle attraction effects (Rhombus skill1)
+  for (let i = 0; i < fighters.length; i++) {
+    const f1 = fighters[i];
+    const attractionEffect = f1.activeEffects.find(e => e.type === 'attraction');
+    if (attractionEffect) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        const dx = f1.x - f2.x;
+        const dy = f1.y - f2.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < attractionEffect.value) {
+          const force = 0.3 * (1 - dist / attractionEffect.value);
+          f2.vx += (dx / dist) * force;
+          f2.vy += (dy / dist) * force;
+        }
+      }
+    }
+  }
+
   for (let i = 0; i < fighters.length; i++) {
     for (let j = i + 1; j < fighters.length; j++) {
       const f1 = fighters[i];
       const f2 = fighters[j];
+      
+      // Check for phase shift (Oval ultimate - pass through)
+      const f1PhaseShift = f1.activeEffects.find(e => e.type === 'phaseShift');
+      const f2PhaseShift = f2.activeEffects.find(e => e.type === 'phaseShift');
+      if (f1PhaseShift || f2PhaseShift) {
+        // Skip collision response if either fighter is phased
+        continue;
+      }
       
       const dx = f2.x - f1.x;
       const dy = f2.y - f1.y;
