@@ -22,7 +22,7 @@ resize();
 window.addEventListener('resize', resize);
 
 // Intro animation state
-let introState = 'ready'; // 'ready', 'fight', 'battle'
+let introState = 'selection'; // 'selection', 'ready', 'fight', 'battle'
 let introTimer = 0;
 const READY_DURATION = 60; // frames
 const FIGHT_DURATION = 30; // frames
@@ -288,18 +288,151 @@ const fighterConfigs = [
   { id: 3, color: '#3357FF', name: 'Gamma', shapeType: 'square' }
 ];
 
+// Track selected fighters
+const selectedFighters = new Set([1, 2, 3]); // All selected by default
+
 function getArenaBounds() {
   const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
   const arenaTop = (canvas.height - ARENA_SIZE) / 2;
   return { arenaLeft, arenaTop };
 }
 
-for (const config of fighterConfigs) {
-  const { arenaLeft, arenaTop } = getArenaBounds();
-  const x = arenaLeft + 50 + Math.random() * (ARENA_SIZE - 100);
-  const y = arenaTop + 50 + Math.random() * (ARENA_SIZE - 100);
-  fighters.push(new Fighter(config.id, x, y, config.color, config.name, config.shapeType));
+function spawnFighters() {
+  fighters.length = 0; // Clear existing fighters
+  for (const config of fighterConfigs) {
+    if (selectedFighters.has(config.id)) {
+      const { arenaLeft, arenaTop } = getArenaBounds();
+      const x = arenaLeft + 50 + Math.random() * (ARENA_SIZE - 100);
+      const y = arenaTop + 50 + Math.random() * (ARENA_SIZE - 100);
+      fighters.push(new Fighter(config.id, x, y, config.color, config.name, config.shapeType));
+    }
+  }
 }
+
+// UI elements for selection
+const checkboxes = [];
+const startButton = { x: 0, y: 0, width: 200, height: 50 };
+
+function drawSelectionUI() {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  
+  // Title
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 48px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SELECT FIGHTERS', centerX, centerY - 200);
+  
+  // Draw checkboxes for each fighter
+  checkboxes.length = 0;
+  const boxSize = 30;
+  const startY = centerY - 50;
+  const spacing = 80;
+  
+  fighterConfigs.forEach((config, index) => {
+    const x = centerX - 100;
+    const y = startY + index * spacing;
+    
+    // Store checkbox position
+    checkboxes.push({ x, y, size: boxSize, id: config.id });
+    
+    // Draw checkbox
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, boxSize, boxSize);
+    
+    // Draw checkmark if selected
+    if (selectedFighters.has(config.id)) {
+      ctx.fillStyle = config.color;
+      ctx.fillRect(x + 4, y + 4, boxSize - 8, boxSize - 8);
+    }
+    
+    // Draw fighter name and shape preview
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(config.name, x + boxSize + 20, y + boxSize / 2);
+    
+    // Draw small shape preview
+    const previewX = x + boxSize + 150;
+    const previewY = y + boxSize / 2;
+    const previewSize = 15;
+    
+    ctx.fillStyle = config.color;
+    if (config.shapeType === 'circle') {
+      ctx.beginPath();
+      ctx.arc(previewX, previewY, previewSize, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (config.shapeType === 'triangle') {
+      ctx.beginPath();
+      ctx.moveTo(previewX, previewY - previewSize);
+      ctx.lineTo(previewX + previewSize * 0.866, previewY + previewSize * 0.5);
+      ctx.lineTo(previewX - previewSize * 0.866, previewY + previewSize * 0.5);
+      ctx.closePath();
+      ctx.fill();
+    } else if (config.shapeType === 'square') {
+      ctx.fillRect(previewX - previewSize, previewY - previewSize, previewSize * 2, previewSize * 2);
+    }
+  });
+  
+  // Draw start button
+  startButton.x = centerX - startButton.width / 2;
+  startButton.y = centerY + 150;
+  
+  ctx.fillStyle = selectedFighters.size >= 2 ? '#4CAF50' : '#666';
+  ctx.fillRect(startButton.x, startButton.y, startButton.width, startButton.height);
+  
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(startButton.x, startButton.y, startButton.width, startButton.height);
+  
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('START BATTLE', centerX, startButton.y + startButton.height / 2);
+  
+  // Instruction
+  if (selectedFighters.size < 2) {
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = '18px Arial';
+    ctx.fillText('Select at least 2 fighters', centerX, startButton.y + startButton.height + 30);
+  }
+}
+
+// Handle mouse clicks
+canvas.addEventListener('click', (e) => {
+  if (introState !== 'selection') return;
+  
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  
+  // Check checkbox clicks
+  for (const checkbox of checkboxes) {
+    if (mouseX >= checkbox.x && mouseX <= checkbox.x + checkbox.size &&
+        mouseY >= checkbox.y && mouseY <= checkbox.y + checkbox.size) {
+      if (selectedFighters.has(checkbox.id)) {
+        selectedFighters.delete(checkbox.id);
+      } else {
+        selectedFighters.add(checkbox.id);
+      }
+      return;
+    }
+  }
+  
+  // Check start button click
+  if (mouseX >= startButton.x && mouseX <= startButton.x + startButton.width &&
+      mouseY >= startButton.y && mouseY <= startButton.y + startButton.height) {
+    if (selectedFighters.size >= 2) {
+      spawnFighters();
+      introState = 'ready';
+      introTimer = 0;
+    }
+  }
+});
 
 // Game loop
 function gameLoop() {
@@ -317,7 +450,9 @@ function gameLoop() {
   ctx.strokeRect(arenaLeft, arenaTop, ARENA_SIZE, ARENA_SIZE);
 
   // Handle intro animation
-  if (introState === 'ready') {
+  if (introState === 'selection') {
+    drawSelectionUI();
+  } else if (introState === 'ready') {
     introTimer++;
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 72px Arial';
