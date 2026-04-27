@@ -87,13 +87,12 @@ class Fighter {
     // Decrease hit flash
     if (this.hitFlash > 0) this.hitFlash--;
 
-    // Maintain minimum speed - accelerate if too slow
+    // Maintain minimum speed
     if (speed < MIN_SPEED && speed > 0) {
       const boost = (MIN_SPEED - speed) * 0.1;
       this.vx += (this.vx / speed) * boost;
       this.vy += (this.vy / speed) * boost;
     } else if (speed === 0) {
-      // If completely stopped, give random direction
       const angle = Math.random() * Math.PI * 2;
       this.vx = Math.cos(angle) * MIN_SPEED;
       this.vy = Math.sin(angle) * MIN_SPEED;
@@ -115,55 +114,77 @@ class Fighter {
       }
     }
 
-    // AI movement - move toward target with some randomness
+    // Arena bounds for wall avoidance
+    const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+    const arenaRight = (canvas.width + ARENA_SIZE) / 2;
+    const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+    const arenaBottom = (canvas.height + ARENA_SIZE) / 2;
+    const wallMargin = 80; // Distance to start avoiding walls
+
+    // Wall avoidance force
+    let avoidX = 0;
+    let avoidY = 0;
+    
+    if (this.x - this.radius < arenaLeft + wallMargin) {
+      avoidX += 1;
+    }
+    if (this.x + this.radius > arenaRight - wallMargin) {
+      avoidX -= 1;
+    }
+    if (this.y - this.radius < arenaTop + wallMargin) {
+      avoidY += 1;
+    }
+    if (this.y + this.radius > arenaBottom - wallMargin) {
+      avoidY -= 1;
+    }
+
+    // AI decision: pursue or reposition
     if (this.target && this.target.hp > 0) {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
-      if (dist > 0) {
-        // Mix of targeting and random movement
-        const targetSpeed = 0.3;
-        const randomSpeed = 0.2;
-        this.vx += (dx / dist) * targetSpeed + (Math.random() - 0.5) * randomSpeed;
-        this.vy += (dy / dist) * targetSpeed + (Math.random() - 0.5) * randomSpeed;
+      // If near walls, prioritize repositioning
+      const nearWall = avoidX !== 0 || avoidY !== 0;
+      
+      if (nearWall) {
+        // Reposition away from walls
+        const avoidStrength = 0.8;
+        this.vx += avoidX * avoidStrength;
+        this.vy += avoidY * avoidStrength;
+      } else {
+        // Pursue target using momentum
+        const pursueStrength = 0.4;
+        this.vx += (dx / dist) * pursueStrength;
+        this.vy += (dy / dist) * pursueStrength;
       }
     } else {
-      // Random movement when no target
-      if (Math.random() < 0.05) {
-        this.vx += (Math.random() - 0.5) * 2;
-        this.vy += (Math.random() - 0.5) * 2;
+      // No target - move toward center with wall avoidance
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const dx = centerX - this.x;
+      const dy = centerY - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist > 0) {
+        this.vx += (dx / dist) * 0.3;
+        this.vy += (dy / dist) * 0.3;
       }
-    }
-
-    // Push away from center if staying too long
-    const arenaCenterX = canvas.width / 2;
-    const arenaCenterY = canvas.height / 2;
-    const distFromCenter = Math.sqrt((this.x - arenaCenterX) ** 2 + (this.y - arenaCenterY) ** 2);
-    const centerThreshold = ARENA_SIZE / 4; // If within center quarter
-    
-    if (distFromCenter < centerThreshold) {
-      // Push away from center
-      const pushStrength = 0.3;
-      const angleToCenter = Math.atan2(this.y - arenaCenterY, this.x - arenaCenterX);
-      this.vx += Math.cos(angleToCenter) * pushStrength;
-      this.vy += Math.sin(angleToCenter) * pushStrength;
+      
+      // Apply wall avoidance
+      const avoidStrength = 0.5;
+      this.vx += avoidX * avoidStrength;
+      this.vy += avoidY * avoidStrength;
     }
 
     // Update position
     this.x += this.vx;
     this.y += this.vy;
 
-    // Boundary collision (arena bounds) - enhanced bouncing
-    const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
-    const arenaRight = (canvas.width + ARENA_SIZE) / 2;
-    const arenaTop = (canvas.height - ARENA_SIZE) / 2;
-    const arenaBottom = (canvas.height + ARENA_SIZE) / 2;
-
+    // Boundary collision - enhanced bouncing
     if (this.x - this.radius < arenaLeft) {
       this.x = arenaLeft + this.radius;
-      this.vx *= -1.2; // Extra bounce
-      // Ensure minimum speed after bounce
+      this.vx *= -1.2;
       if (Math.abs(this.vx) < MIN_SPEED) {
         this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
       }
