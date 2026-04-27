@@ -986,17 +986,9 @@ function handleCollisions(fighters) {
             if (luckRoll < 0.5) {
               f1.hp -= damage;
               f1.hitFlash = 15;
-              // Check for KO
-              if (f1.hp <= 0 && introState === 'battle') {
-                triggerKO(f2);
-              }
             } else {
               f2.hp -= damage;
               f2.hitFlash = 15;
-              // Check for KO
-              if (f2.hp <= 0 && introState === 'battle') {
-                triggerKO(f1);
-              }
             }
           }
         }
@@ -1324,20 +1316,19 @@ function gameLoop() {
     const aliveFighters = fighters.filter(f => f.hp > 0);
     
     if (aliveFighters.length <= 1) {
-      // Winner announcement
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 48px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      
-      if (aliveFighters.length === 1) {
-        ctx.fillText(`${aliveFighters[0].name} WINS!`, canvas.width / 2, canvas.height / 2);
-      } else {
+      // Trigger KO sequence if not already triggered
+      if (introState === 'battle' && aliveFighters.length === 1) {
+        triggerKO(aliveFighters[0]);
+      } else if (introState === 'battle') {
+        // Draw state when no survivors
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.fillText('DRAW!', canvas.width / 2, canvas.height / 2);
+        ctx.font = 'bold 24px Arial';
+        ctx.fillText('Refresh to restart', canvas.width / 2, canvas.height / 2 + 50);
       }
-      
-      ctx.font = 'bold 24px Arial';
-      ctx.fillText('Refresh to restart', canvas.width / 2, canvas.height / 2 + 50);
     } else {
       // Record state for replay
       recordState();
