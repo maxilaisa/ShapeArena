@@ -1064,96 +1064,389 @@ function triggerKO(winner) {
 }
 
 // UI elements for selection
-const checkboxes = [];
-const startButton = { x: 0, y: 0, width: 200, height: 50 };
+const cardHitAreas = [];
+const startButton = { x: 0, y: 0, width: 220, height: 54 };
+const selectAllButton = { x: 0, y: 0, width: 140, height: 38 };
 
-function drawSelectionUI() {
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  
-  // Title
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 48px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('SELECT FIGHTERS', centerX, centerY - 200);
-  
-  // Draw checkboxes for each fighter
-  checkboxes.length = 0;
-  const boxSize = 30;
-  const startY = centerY - 50;
-  const spacing = 80;
-  
-  fighterConfigs.forEach((config, index) => {
-    const x = centerX - 100;
-    const y = startY + index * spacing;
-    
-    // Store checkbox position
-    checkboxes.push({ x, y, size: boxSize, id: config.id });
-    
-    // Draw checkbox
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, boxSize, boxSize);
-    
-    // Draw checkmark if selected
-    if (selectedFighters.has(config.id)) {
-      ctx.fillStyle = config.color;
-      ctx.fillRect(x + 4, y + 4, boxSize - 8, boxSize - 8);
-    }
-    
-    // Draw fighter name and shape preview
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 24px Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(config.name, x + boxSize + 20, y + boxSize / 2);
-    
-    // Draw small shape preview
-    const previewX = x + boxSize + 150;
-    const previewY = y + boxSize / 2;
-    const previewSize = 15;
-    
-    ctx.fillStyle = config.color;
-    if (config.shapeType === 'circle') {
+// Helper: draw a shape preview on canvas at (x,y) with given size and shapeType
+function drawShapePreview(x, y, size, shapeType, color, alpha = 1) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+
+  switch (shapeType) {
+    case 'circle':
       ctx.beginPath();
-      ctx.arc(previewX, previewY, previewSize, 0, Math.PI * 2);
+      ctx.arc(x, y, size, 0, Math.PI * 2);
       ctx.fill();
-    } else if (config.shapeType === 'triangle') {
+      break;
+    case 'triangle':
       ctx.beginPath();
-      ctx.moveTo(previewX, previewY - previewSize);
-      ctx.lineTo(previewX + previewSize * 0.866, previewY + previewSize * 0.5);
-      ctx.lineTo(previewX - previewSize * 0.866, previewY + previewSize * 0.5);
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size * 0.866, y + size * 0.5);
+      ctx.lineTo(x - size * 0.866, y + size * 0.5);
       ctx.closePath();
       ctx.fill();
-    } else if (config.shapeType === 'square') {
-      ctx.fillRect(previewX - previewSize, previewY - previewSize, previewSize * 2, previewSize * 2);
-    }
-  });
-  
-  // Draw start button
-  startButton.x = centerX - startButton.width / 2;
-  startButton.y = centerY + 150;
-  
-  ctx.fillStyle = selectedFighters.size >= 2 ? '#4CAF50' : '#666';
-  ctx.fillRect(startButton.x, startButton.y, startButton.width, startButton.height);
-  
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(startButton.x, startButton.y, startButton.width, startButton.height);
-  
+      break;
+    case 'square':
+      ctx.fillRect(x - size, y - size, size * 2, size * 2);
+      break;
+    case 'oval':
+      ctx.beginPath();
+      ctx.ellipse(x, y, size * 1.3, size * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'hexagon':
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 6;
+        const px = x + size * Math.cos(a);
+        const py = y + size * Math.sin(a);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'spiral':
+      ctx.beginPath();
+      for (let i = 0; i < 50; i++) {
+        const a = i * 0.3;
+        const r = (i / 50) * size;
+        const px = x + r * Math.cos(a);
+        const py = y + r * Math.sin(a);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, size * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'rhombus':
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size * 0.7, y);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x - size * 0.7, y);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'star':
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const oa = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const ia = oa + Math.PI / 5;
+        if (i === 0) ctx.moveTo(x + size * Math.cos(oa), y + size * Math.sin(oa));
+        else ctx.lineTo(x + size * Math.cos(oa), y + size * Math.sin(oa));
+        ctx.lineTo(x + size * 0.4 * Math.cos(ia), y + size * 0.4 * Math.sin(ia));
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'heart':
+      ctx.beginPath();
+      ctx.moveTo(x, y + size * 0.3);
+      ctx.bezierCurveTo(x - size, y - size * 0.5, x - size * 0.5, y - size, x, y - size * 0.3);
+      ctx.bezierCurveTo(x + size * 0.5, y - size, x + size, y - size * 0.5, x, y + size * 0.3);
+      ctx.fill();
+      break;
+    case 'diamond':
+      ctx.beginPath();
+      ctx.moveTo(x, y - size);
+      ctx.lineTo(x + size * 0.6, y - size * 0.3);
+      ctx.lineTo(x + size * 0.6, y + size * 0.3);
+      ctx.lineTo(x, y + size);
+      ctx.lineTo(x - size * 0.6, y + size * 0.3);
+      ctx.lineTo(x - size * 0.6, y - size * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    case 'crescent':
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(x + size * 0.4, y, size * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = alpha;
+      break;
+    case 'dodecahedron':
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const a = (Math.PI * 2 / 12) * i;
+        const px = x + size * Math.cos(a);
+        const py = y + size * Math.sin(a);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Personality trait labels for stat bars
+const TRAIT_LABELS = {
+  aggression: 'ATK', mobility: 'SPD', precision: 'AIM',
+  chaos: 'CHS', skillDiscipline: 'SKL', fear: 'DEF'
+};
+const SHOWN_TRAITS = ['aggression', 'mobility', 'precision', 'chaos', 'skillDiscipline', 'fear'];
+
+// Personality base stats (mirrors initPersonality)
+const basePersonalities = {
+  circle:      { aggression:7,  mobility:8,  precision:6,  chaos:5, fear:3,  skillDiscipline:7 },
+  triangle:    { aggression:8,  mobility:9,  precision:7,  chaos:4, fear:2,  skillDiscipline:8 },
+  square:      { aggression:5,  mobility:4,  precision:8,  chaos:2, fear:5,  skillDiscipline:9 },
+  oval:        { aggression:6,  mobility:10, precision:5,  chaos:4, fear:4,  skillDiscipline:6 },
+  hexagon:     { aggression:4,  mobility:5,  precision:9,  chaos:3, fear:6,  skillDiscipline:8 },
+  spiral:      { aggression:5,  mobility:7,  precision:4,  chaos:9, fear:4,  skillDiscipline:5 },
+  rhombus:     { aggression:6,  mobility:6,  precision:7,  chaos:6, fear:3,  skillDiscipline:7 },
+  star:        { aggression:10, mobility:7,  precision:5,  chaos:7, fear:1,  skillDiscipline:6 },
+  heart:       { aggression:3,  mobility:8,  precision:6,  chaos:3, fear:8,  skillDiscipline:7 },
+  diamond:     { aggression:7,  mobility:6,  precision:10, chaos:2, fear:4,  skillDiscipline:8 },
+  crescent:    { aggression:6,  mobility:8,  precision:6,  chaos:5, fear:5,  skillDiscipline:6 },
+  dodecahedron:{ aggression:6,  mobility:6,  precision:7,  chaos:4, fear:5,  skillDiscipline:10 }
+};
+
+function drawSelectionUI() {
+  const W = canvas.width;
+  const H = canvas.height;
+  const cx = W / 2;
+
+  // ── Background overlay ──────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Title ────────────────────────────────────────────────────────────
+  const titleH = Math.min(H * 0.09, 52);
+  ctx.save();
+  ctx.shadowColor = '#7ec8ff';
+  ctx.shadowBlur = 18;
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 24px Arial';
+  ctx.font = `bold ${titleH}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('START BATTLE', centerX, startButton.y + startButton.height / 2);
-  
-  // Instruction
-  if (selectedFighters.size < 2) {
-    ctx.fillStyle = '#ff6b6b';
-    ctx.font = '18px Arial';
-    ctx.fillText('Select at least 2 fighters', centerX, startButton.y + startButton.height + 30);
+  ctx.fillText('SELECT FIGHTERS', cx, titleH * 0.7);
+  ctx.restore();
+
+  // ── Layout maths ─────────────────────────────────────────────────────
+  const COLS = 4;
+  const ROWS = 3;
+  const padding = Math.min(W * 0.025, 20);
+  const topOffset = titleH * 1.4;
+  const bottomReserve = Math.min(H * 0.14, 90); // space for button row
+
+  const gridW = W - padding * 2;
+  const gridH = H - topOffset - bottomReserve - padding;
+  const cardW = Math.floor(gridW / COLS);
+  const cardH = Math.floor(gridH / ROWS);
+
+  cardHitAreas.length = 0;
+
+  fighterConfigs.forEach((config, index) => {
+    const col = index % COLS;
+    const row = Math.floor(index / COLS);
+
+    const cx0 = padding + col * cardW + cardW / 2;
+    const cy0 = topOffset + row * cardH + cardH / 2;
+    const cardLeft = padding + col * cardW;
+    const cardTop  = topOffset + row * cardH;
+    const isSelected = selectedFighters.has(config.id);
+
+    // Card background
+    const borderAlpha = isSelected ? 1 : 0.3;
+    const bgAlpha     = isSelected ? 0.18 : 0.06;
+
+    ctx.save();
+    ctx.globalAlpha = bgAlpha;
+    ctx.fillStyle = config.color;
+    roundRect(ctx, cardLeft + 4, cardTop + 4, cardW - 8, cardH - 8, 10);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = borderAlpha;
+    ctx.strokeStyle = isSelected ? config.color : '#555';
+    ctx.lineWidth = isSelected ? 2.5 : 1.5;
+    roundRect(ctx, cardLeft + 4, cardTop + 4, cardW - 8, cardH - 8, 10);
+    ctx.stroke();
+    ctx.restore();
+
+    // ── Shape preview ───────────────────────────────────────────────
+    const shapeSize = Math.min(cardW, cardH) * 0.22;
+    const shapeY = cy0 - cardH * 0.06;
+
+    if (isSelected) {
+      // glow ring
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = config.color;
+      ctx.beginPath();
+      ctx.arc(cx0, shapeY, shapeSize + 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    drawShapePreview(cx0, shapeY, shapeSize, config.shapeType, isSelected ? config.color : '#777');
+
+    // ── Name ────────────────────────────────────────────────────────
+    const nameFontSize = Math.max(Math.min(cardW * 0.18, cardH * 0.18, 18), 11);
+    ctx.fillStyle = isSelected ? '#fff' : '#888';
+    ctx.font = `bold ${nameFontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(config.name.toUpperCase(), cx0, shapeY + shapeSize + nameFontSize * 1.1);
+
+    // ── Stat bars ───────────────────────────────────────────────────
+    const stats = basePersonalities[config.shapeType];
+    const barAreaTop = shapeY + shapeSize + nameFontSize * 2.5;
+    const barAreaH   = (cardTop + cardH - 8) - barAreaTop - 4;
+    const barRowH    = barAreaH / SHOWN_TRAITS.length;
+    const barLabelW  = Math.max(cardW * 0.13, 22);
+    const barRight   = cardLeft + cardW - 10;
+    const barLeft    = cardLeft + 10 + barLabelW;
+    const barMaxW    = barRight - barLeft - 4;
+    const barH       = Math.max(barRowH * 0.38, 3);
+
+    if (barAreaH > 10) {
+      SHOWN_TRAITS.forEach((trait, ti) => {
+        const val = stats[trait] ?? 5;
+        const by = barAreaTop + ti * barRowH + barRowH / 2;
+        const fillW = (val / 10) * barMaxW;
+
+        // Label
+        const labelSize = Math.max(Math.min(barRowH * 0.52, cardW * 0.1, 10), 7);
+        ctx.fillStyle = isSelected ? '#aaa' : '#555';
+        ctx.font = `${labelSize}px Arial`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(TRAIT_LABELS[trait], cardLeft + 10 + barLabelW - 3, by);
+
+        // Track
+        ctx.fillStyle = isSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)';
+        roundRect(ctx, barLeft, by - barH / 2, barMaxW, barH, barH / 2);
+        ctx.fill();
+
+        // Fill
+        if (fillW > 0) {
+          ctx.fillStyle = isSelected ? config.color : '#444';
+          ctx.globalAlpha = isSelected ? 0.85 : 0.4;
+          roundRect(ctx, barLeft, by - barH / 2, fillW, barH, barH / 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      });
+    }
+
+    // ── Selected checkmark badge ─────────────────────────────────────
+    if (isSelected) {
+      const bx = cardLeft + cardW - 18;
+      const by2 = cardTop + 16;
+      const br = 9;
+      ctx.fillStyle = config.color;
+      ctx.beginPath();
+      ctx.arc(bx, by2, br, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bx - 4.5, by2);
+      ctx.lineTo(bx - 1.5, by2 + 3.5);
+      ctx.lineTo(bx + 5, by2 - 4);
+      ctx.stroke();
+    }
+
+    // Store hit area
+    cardHitAreas.push({ x: cardLeft + 4, y: cardTop + 4, w: cardW - 8, h: cardH - 8, id: config.id });
+  });
+
+  // ── Bottom bar ───────────────────────────────────────────────────────
+  const barY = H - bottomReserve + (bottomReserve - startButton.height) / 2;
+
+  // Select All / None toggle
+  const allSelected = selectedFighters.size === fighterConfigs.length;
+  selectAllButton.x = cx - startButton.width / 2 - selectAllButton.width - 16;
+  selectAllButton.y = barY;
+  ctx.fillStyle = allSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)';
+  roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
+  ctx.stroke();
+  ctx.fillStyle = '#ddd';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(allSelected ? 'DESELECT ALL' : 'SELECT ALL', selectAllButton.x + selectAllButton.width / 2, selectAllButton.y + selectAllButton.height / 2);
+
+  // Count badge
+  const countStr = `${selectedFighters.size} / ${fighterConfigs.length}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  roundRect(ctx, cx - 38, barY + 4, 76, selectAllButton.height - 8, 6);
+  ctx.fill();
+  ctx.fillStyle = '#ccc';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(countStr, cx, barY + selectAllButton.height / 2);
+
+  // Start button
+  startButton.x = cx + 54;
+  startButton.y = barY - (startButton.height - selectAllButton.height) / 2;
+  const canStart = selectedFighters.size >= 2;
+  const btnGrad = ctx.createLinearGradient(startButton.x, startButton.y, startButton.x, startButton.y + startButton.height);
+  if (canStart) {
+    btnGrad.addColorStop(0, '#56d364');
+    btnGrad.addColorStop(1, '#2ea043');
+  } else {
+    btnGrad.addColorStop(0, '#444');
+    btnGrad.addColorStop(1, '#333');
   }
+  ctx.fillStyle = btnGrad;
+  roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
+  ctx.fill();
+  if (canStart) {
+    ctx.save();
+    ctx.shadowColor = '#56d364';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = canStart ? '#fff' : '#666';
+  ctx.font = `bold 20px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⚔  START BATTLE', startButton.x + startButton.width / 2, startButton.y + startButton.height / 2);
+
+  // Warning if too few selected
+  if (!canStart) {
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = '13px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Select at least 2 fighters', cx, startButton.y + startButton.height + 6);
+  }
+}
+
+// Utility: rounded rectangle path
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 // Handle mouse clicks
@@ -1161,20 +1454,33 @@ canvas.addEventListener('click', (e) => {
   if (introState !== 'selection') return;
   
   const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mouseX = (e.clientX - rect.left) * scaleX;
+  const mouseY = (e.clientY - rect.top) * scaleY;
   
-  // Check checkbox clicks
-  for (const checkbox of checkboxes) {
-    if (mouseX >= checkbox.x && mouseX <= checkbox.x + checkbox.size &&
-        mouseY >= checkbox.y && mouseY <= checkbox.y + checkbox.size) {
-      if (selectedFighters.has(checkbox.id)) {
-        selectedFighters.delete(checkbox.id);
+  // Check fighter card clicks
+  for (const card of cardHitAreas) {
+    if (mouseX >= card.x && mouseX <= card.x + card.w &&
+        mouseY >= card.y && mouseY <= card.y + card.h) {
+      if (selectedFighters.has(card.id)) {
+        selectedFighters.delete(card.id);
       } else {
-        selectedFighters.add(checkbox.id);
+        selectedFighters.add(card.id);
       }
       return;
     }
+  }
+
+  // Check Select All / Deselect All button
+  if (mouseX >= selectAllButton.x && mouseX <= selectAllButton.x + selectAllButton.width &&
+      mouseY >= selectAllButton.y && mouseY <= selectAllButton.y + selectAllButton.height) {
+    if (selectedFighters.size === fighterConfigs.length) {
+      selectedFighters.clear();
+    } else {
+      fighterConfigs.forEach(c => selectedFighters.add(c.id));
+    }
+    return;
   }
   
   // Check start button click
