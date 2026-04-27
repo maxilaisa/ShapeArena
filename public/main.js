@@ -10,7 +10,7 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
 // Arena configuration
-const ARENA_SIZE = 600;
+const ARENA_SIZE = 800;
 const BORDER_WIDTH = 2;
 
 // Resize canvas to fit arena
@@ -54,7 +54,7 @@ class Fighter {
     this.y = y;
     this.vx = (Math.random() - 0.5) * 4;
     this.vy = (Math.random() - 0.5) * 4;
-    this.radius = 30 + Math.random() * 20;
+    this.radius = 35; // Fixed size for all shapes
     this.baseMass = this.radius * this.radius;
     this.mass = this.baseMass;
     this.color = color;
@@ -64,6 +64,7 @@ class Fighter {
     this.maxHp = 100;
     this.target = null;
     this.ultimateCharge = 0;
+    this.lastAttacker = null; // Track for revenge stat
     
     // Ability cooldowns (in frames)
     this.cooldowns = {
@@ -79,6 +80,54 @@ class Fighter {
     this.trail = [];
     this.hitFlash = 0;
     this.abilityFlash = 0; // Flash when using ability
+    
+    // Initialize personality with match variation
+    this.initPersonality();
+  }
+  
+  initPersonality() {
+    // Fixed base personalities per shape
+    const basePersonalities = {
+      circle: {
+        aggression: 7,
+        mobility: 8,
+        precision: 6,
+        chaos: 5,
+        greed: 6,
+        fear: 3,
+        revenge: 5,
+        skillDiscipline: 7
+      },
+      triangle: {
+        aggression: 8,
+        mobility: 9,
+        precision: 7,
+        chaos: 4,
+        greed: 7,
+        fear: 2,
+        revenge: 6,
+        skillDiscipline: 8
+      },
+      square: {
+        aggression: 5,
+        mobility: 4,
+        precision: 8,
+        chaos: 2,
+        greed: 4,
+        fear: 5,
+        revenge: 7,
+        skillDiscipline: 9
+      }
+    };
+    
+    const base = basePersonalities[this.shapeType];
+    
+    // Apply ±5-10% variation
+    this.personality = {};
+    for (let stat in base) {
+      const variation = 1 + (Math.random() * 0.1 - 0.05); // ±5%
+      this.personality[stat] = Math.max(1, Math.min(10, Math.round(base[stat] * variation)));
+    }
   }
 
   update(fighters) {
@@ -122,7 +171,7 @@ class Fighter {
       this.vy = Math.sin(angle) * MIN_SPEED;
     }
 
-    // Find nearest target
+    // Find nearest target (consider revenge stat)
     let nearestDist = Infinity;
     this.target = null;
     
@@ -132,8 +181,14 @@ class Fighter {
       const dy = fighter.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
-      if (dist < nearestDist) {
-        nearestDist = dist;
+      // Revenge: prioritize last attacker
+      let effectiveDist = dist;
+      if (this.personality.revenge > 5 && this.lastAttacker === fighter) {
+        effectiveDist *= (1 - (this.personality.revenge - 5) / 20);
+      }
+      
+      if (effectiveDist < nearestDist) {
+        nearestDist = effectiveDist;
         this.target = fighter;
       }
     }
@@ -171,19 +226,57 @@ class Fighter {
       // AI ability decisions
       this.makeAbilityDecision(dist, arenaLeft, arenaRight, arenaTop, arenaBottom);
       
-      // If near walls, prioritize repositioning
-      const nearWall = avoidX !== 0 || avoidY !== 0;
+      const p = this.personality;
+      const hpPercent = this.hp / this.maxHp;
+      const fearThreshold = p.fear / 10;
       
-      if (nearWall) {
-        // Reposition away from walls
-        const avoidStrength = 0.8;
-        this.vx += avoidX * avoidStrength;
-        this.vy += avoidY * avoidStrength;
+      // Fear: retreat at low HP
+      if (hpPercent < fearThreshold && p.fear > 3) {
+        // Move away from target
+        const retreatStrength = 0.6 * (fearThreshold - hpPercent + 0.1);
+        this.vx -= (dx / dist) * retreatStrength;
+        this.vy -= (dy / dist) * retreatStrength;
       } else {
-        // Pursue target using momentum
-        const pursueStrength = 0.4;
-        this.vx += (dx / dist) * pursueStrength;
-        this.vy += (dy / dist) * pursueStrength;
+        // Greed: favor close engagements
+        const greedBonus = p.greed / 10;
+        const nearWall = avoidX !== 0 || avoidY !== 0;
+        
+        if (nearWall) {
+          // Reposition away from walls (mobility increases effectiveness)
+          const avoidStrength = 0.8 * (1 + p.mobility / 20);
+          this.vx += avoidX * avoidStrength;
+          this.vy += avoidY * avoidStrength;
+        } else {
+          // Pursue target using momentum (aggression increases strength)
+          const pursueStrength = 0.4 * (1 + p.aggression / 20 + greedBonus * 0.3);
+          
+          // Precision: aim toward predicted enemy position
+          let targetX = this.target.x;
+          let targetY = this.target.y;
+          if (p.precision > 5) {
+            const predictionFactor = (p.precision - 5) / 20;
+            targetX += this.target.vx * predictionFactor * 10;
+            targetY += this.target.vy * predictionFactor * 10;
+          }
+          
+          const predDx = targetX - this.x;
+          const predDy = targetY - this.y;
+          const predDist = Math.sqrt(predDx * predDx + predDy * predDy);
+          
+          if (predDist > 0) {
+            // Chaos: add randomness to direction
+            const chaosOffset = (Math.random() - 0.5) * (p.chaos / 10) * 0.5;
+            this.vx += (predDx / predDist) * pursueStrength + chaosOffset;
+            this.vy += (predDy / predDist) * pursueStrength + chaosOffset;
+          }
+        }
+      }
+      
+      // SkillDiscipline: reduce random mistakes in movement
+      if (p.skillDiscipline < 5 && Math.random() < (5 - p.skillDiscipline) / 100) {
+        // Occasional random impulse (mistake)
+        this.vx += (Math.random() - 0.5) * 2;
+        this.vy += (Math.random() - 0.5) * 2;
       }
     } else {
       // No target - move toward center with wall avoidance
@@ -348,38 +441,46 @@ class Fighter {
 
   makeAbilityDecision(distToTarget, arenaLeft, arenaRight, arenaTop, arenaBottom) {
     const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    const p = this.personality;
+    const chaosFactor = p.chaos / 10; // 0.1 to 1.0
     const rand = Math.random();
     
-    // Use ultimate if available (10% chance per frame when ready)
-    if (this.ultimateCharge >= 10 && this.cooldowns.ultimate === 0 && rand < 0.01) {
+    // Base chance modified by chaos
+    const baseChance = 0.02 * (1 + chaosFactor * 0.5);
+    const ultimateChance = 0.01 * (1 + p.skillDiscipline / 20);
+    
+    // Use ultimate if available (chance influenced by skill discipline)
+    if (this.ultimateCharge >= 10 && this.cooldowns.ultimate === 0 && rand < ultimateChance) {
       this.useUltimate();
       return;
     }
     
-    // Skill 1 usage based on situation
-    if (this.cooldowns.skill1 === 0 && rand < 0.02) {
-      if (this.shapeType === 'circle' && speed > 5) {
-        // Circle: Rolling Charge when moving fast
+    // Skill 1 usage based on situation and personality
+    if (this.cooldowns.skill1 === 0 && rand < baseChance) {
+      const aggressionBonus = p.aggression / 10;
+      
+      if (this.shapeType === 'circle' && speed > 5 * (1 - p.mobility / 20)) {
+        // Circle: Rolling Charge when moving fast (mobility lowers threshold)
         this.useSkill1();
-      } else if (this.shapeType === 'triangle' && distToTarget > 150) {
-        // Triangle: Piercing Dash when far from target
+      } else if (this.shapeType === 'triangle' && distToTarget > 150 * (1 - p.greed / 20)) {
+        // Triangle: Piercing Dash when far from target (greed lowers distance threshold)
         this.useSkill1();
-      } else if (this.shapeType === 'square' && rand < 0.5) {
-        // Square: Fortress Slam occasionally
+      } else if (this.shapeType === 'square' && rand < 0.5 * aggressionBonus) {
+        // Square: Fortress Slam (aggression increases usage)
         this.useSkill1();
       }
     }
     
-    // Skill 2 usage based on situation
-    if (this.cooldowns.skill2 === 0 && rand < 0.02) {
+    // Skill 2 usage based on situation and personality
+    if (this.cooldowns.skill2 === 0 && rand < baseChance) {
       if (this.shapeType === 'circle') {
         // Circle: Rebound Feint near walls
         this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
-      } else if (this.shapeType === 'triangle' && distToTarget < 100) {
-        // Triangle: Edge Step when close to target
+      } else if (this.shapeType === 'triangle' && distToTarget < 100 * (1 + p.greed / 10)) {
+        // Triangle: Edge Step when close to target (greed increases range)
         this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
-      } else if (this.shapeType === 'square' && speed > 6) {
-        // Square: Anchor Brace when moving fast
+      } else if (this.shapeType === 'square' && speed > 6 * (1 - p.fear / 20)) {
+        // Square: Anchor Brace when moving fast (fear lowers threshold)
         this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
       }
     }
@@ -529,8 +630,10 @@ function handleCollisions(fighters) {
             // Award charge to the attacker
             if (luckRoll < 0.5) {
               f2.ultimateCharge = Math.min(f2.ultimateCharge + chargeAmount, 10);
+              f1.lastAttacker = f2;
             } else {
               f1.ultimateCharge = Math.min(f1.ultimateCharge + chargeAmount, 10);
+              f2.lastAttacker = f1;
             }
             
             // Check for near-KO (low HP before damage)
