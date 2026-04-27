@@ -27,10 +27,17 @@ let introTimer = 0;
 const READY_DURATION = 60; // frames
 const FIGHT_DURATION = 30; // frames
 
+// Hit effects
+let hitPauseTimer = 0;
+const HIT_PAUSE_DURATION = 8; // frames of slow motion
+let screenShake = { x: 0, y: 0, intensity: 0 };
+
 // Physics constants
 const FRICTION = 0.98;
 const ELASTICITY = 0.8;
 const GRAVITY = 0;
+const MIN_SPEED = 4; // Minimum speed fighters should maintain
+const DEFAULT_SPEED = 5; // Default target speed
 
 // Fighter class
 class Fighter {
@@ -80,6 +87,18 @@ class Fighter {
     // Decrease hit flash
     if (this.hitFlash > 0) this.hitFlash--;
 
+    // Maintain minimum speed - accelerate if too slow
+    if (speed < MIN_SPEED && speed > 0) {
+      const boost = (MIN_SPEED - speed) * 0.1;
+      this.vx += (this.vx / speed) * boost;
+      this.vy += (this.vy / speed) * boost;
+    } else if (speed === 0) {
+      // If completely stopped, give random direction
+      const angle = Math.random() * Math.PI * 2;
+      this.vx = Math.cos(angle) * MIN_SPEED;
+      this.vy = Math.sin(angle) * MIN_SPEED;
+    }
+
     // Find nearest target
     let nearestDist = Infinity;
     this.target = null;
@@ -96,30 +115,46 @@ class Fighter {
       }
     }
 
-    // Autonomous AI - move toward target
+    // AI movement - move toward target with some randomness
     if (this.target && this.target.hp > 0) {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
       if (dist > 0) {
-        const speed = 0.5;
-        this.vx += (dx / dist) * speed;
-        this.vy += (dy / dist) * speed;
+        // Mix of targeting and random movement
+        const targetSpeed = 0.3;
+        const randomSpeed = 0.2;
+        this.vx += (dx / dist) * targetSpeed + (Math.random() - 0.5) * randomSpeed;
+        this.vy += (dy / dist) * targetSpeed + (Math.random() - 0.5) * randomSpeed;
       }
+    } else {
+      // Random movement when no target
+      if (Math.random() < 0.05) {
+        this.vx += (Math.random() - 0.5) * 2;
+        this.vy += (Math.random() - 0.5) * 2;
+      }
+    }
 
-      // Attack if close
-      if (dist < this.radius + this.target.radius + 10 && this.attackCooldown <= 0) {
-        this.attack(this.target);
-        this.attackCooldown = 30;
-      }
+    // Push away from center if staying too long
+    const arenaCenterX = canvas.width / 2;
+    const arenaCenterY = canvas.height / 2;
+    const distFromCenter = Math.sqrt((this.x - arenaCenterX) ** 2 + (this.y - arenaCenterY) ** 2);
+    const centerThreshold = ARENA_SIZE / 4; // If within center quarter
+    
+    if (distFromCenter < centerThreshold) {
+      // Push away from center
+      const pushStrength = 0.3;
+      const angleToCenter = Math.atan2(this.y - arenaCenterY, this.x - arenaCenterX);
+      this.vx += Math.cos(angleToCenter) * pushStrength;
+      this.vy += Math.sin(angleToCenter) * pushStrength;
     }
 
     // Update position
     this.x += this.vx;
     this.y += this.vy;
 
-    // Boundary collision (arena bounds)
+    // Boundary collision (arena bounds) - enhanced bouncing
     const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
     const arenaRight = (canvas.width + ARENA_SIZE) / 2;
     const arenaTop = (canvas.height - ARENA_SIZE) / 2;
@@ -127,19 +162,32 @@ class Fighter {
 
     if (this.x - this.radius < arenaLeft) {
       this.x = arenaLeft + this.radius;
-      this.vx *= -ELASTICITY;
+      this.vx *= -1.2; // Extra bounce
+      // Ensure minimum speed after bounce
+      if (Math.abs(this.vx) < MIN_SPEED) {
+        this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
+      }
     }
     if (this.x + this.radius > arenaRight) {
       this.x = arenaRight - this.radius;
-      this.vx *= -ELASTICITY;
+      this.vx *= -1.2;
+      if (Math.abs(this.vx) < MIN_SPEED) {
+        this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
+      }
     }
     if (this.y - this.radius < arenaTop) {
       this.y = arenaTop + this.radius;
-      this.vy *= -ELASTICITY;
+      this.vy *= -1.2;
+      if (Math.abs(this.vy) < MIN_SPEED) {
+        this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
+      }
     }
     if (this.y + this.radius > arenaBottom) {
       this.y = arenaBottom - this.radius;
-      this.vy *= -ELASTICITY;
+      this.vy *= -1.2;
+      if (Math.abs(this.vy) < MIN_SPEED) {
+        this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
+      }
     }
 
     // Cooldown
@@ -274,6 +322,33 @@ function handleCollisions(fighters) {
           f1.vy -= impulse * m2 * ny * restitution;
           f2.vx += impulse * m1 * nx * restitution;
           f2.vy += impulse * m1 * ny * restitution;
+          
+          // Damage on collision
+          const collisionSpeed = Math.abs(dvn);
+          if (collisionSpeed > 3) {
+            const damage = Math.floor(collisionSpeed * 2) + Math.floor(Math.random() * 5);
+            const luckRoll = Math.random();
+            
+            // Trigger hit pause on heavy hits
+            if (damage > 15) {
+              hitPauseTimer = HIT_PAUSE_DURATION;
+            }
+            
+            // Trigger screen shake on very heavy hits
+            if (damage > 20) {
+              screenShake.intensity = Math.min(damage / 5, 15);
+              screenShake.x = (Math.random() - 0.5) * screenShake.intensity;
+              screenShake.y = (Math.random() - 0.5) * screenShake.intensity;
+            }
+            
+            if (luckRoll < 0.5) {
+              f1.hp -= damage;
+              f1.hitFlash = 15;
+            } else {
+              f2.hp -= damage;
+              f2.hitFlash = 15;
+            }
+          }
         }
       }
     }
@@ -436,6 +511,18 @@ canvas.addEventListener('click', (e) => {
 
 // Game loop
 function gameLoop() {
+  // Apply screen shake
+  ctx.save();
+  if (screenShake.intensity > 0) {
+    screenShake.x = (Math.random() - 0.5) * screenShake.intensity;
+    screenShake.y = (Math.random() - 0.5) * screenShake.intensity;
+    ctx.translate(screenShake.x, screenShake.y);
+    screenShake.intensity *= 0.9;
+    if (screenShake.intensity < 0.5) {
+      screenShake.intensity = 0;
+    }
+  }
+
   // Clear canvas with black background
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -495,16 +582,39 @@ function gameLoop() {
       ctx.font = 'bold 24px Arial';
       ctx.fillText('Refresh to restart', canvas.width / 2, canvas.height / 2 + 50);
     } else {
-      handleCollisions(fighters);
-      
-      for (let fighter of fighters) {
-        if (fighter.hp > 0) {
-          fighter.update(fighters);
-          fighter.draw();
+      // Handle hit pause (slow motion)
+      if (hitPauseTimer > 0) {
+        hitPauseTimer--;
+        // Only update positions slowly during hit pause
+        if (hitPauseTimer % 2 === 0) {
+          handleCollisions(fighters);
+          for (let fighter of fighters) {
+            if (fighter.hp > 0) {
+              fighter.update(fighters);
+            }
+          }
+        }
+        // Still draw every frame
+        for (let fighter of fighters) {
+          if (fighter.hp > 0) {
+            fighter.draw();
+          }
+        }
+      } else {
+        handleCollisions(fighters);
+        
+        for (let fighter of fighters) {
+          if (fighter.hp > 0) {
+            fighter.update(fighters);
+            fighter.draw();
+          }
         }
       }
     }
   }
+
+  // Restore context (undo screen shake)
+  ctx.restore();
 
   // Draw fighter names at top (vs format)
   const aliveFighters = fighters.filter(f => f.hp > 0);
