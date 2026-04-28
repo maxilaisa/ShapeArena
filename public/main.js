@@ -60,8 +60,8 @@ class Fighter {
     this.id = id;
     this.x = x;
     this.y = y;
-    this.vx = (Math.random() - 0.5) * 4;
-    this.vy = (Math.random() - 0.5) * 4;
+    this.vx = 0; // Start stationary
+    this.vy = 0; // Start stationary
     this.radius = 35; // Fixed size for all shapes
     this.baseMass = this.radius * this.radius;
     this.mass = this.baseMass;
@@ -1385,14 +1385,20 @@ function getArenaBounds() {
 function spawnFighters() {
   fighters.length = 0; // Clear existing fighters
   replayBuffer = []; // Clear replay buffer
-  for (const config of fighterConfigs) {
-    if (selectedFighters.has(config.id)) {
-      const { arenaLeft, arenaTop } = getArenaBounds();
-      const x = arenaLeft + 50 + Math.random() * (ARENA_SIZE - 100);
-      const y = arenaTop + 50 + Math.random() * (ARENA_SIZE - 100);
-      fighters.push(new Fighter(config.id, x, y, config.color, config.name, config.shapeType));
-    }
-  }
+  
+  const selectedConfigs = fighterConfigs.filter(c => selectedFighters.has(c.id));
+  const { arenaLeft, arenaTop } = getArenaBounds();
+  const centerX = arenaLeft + ARENA_SIZE / 2;
+  const centerY = arenaTop + ARENA_SIZE / 2;
+  
+  // Arrange fighters in a circle formation
+  const radius = ARENA_SIZE * 0.25;
+  selectedConfigs.forEach((config, index) => {
+    const angle = (index / selectedConfigs.length) * Math.PI * 2;
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY + Math.sin(angle) * radius;
+    fighters.push(new Fighter(config.id, x, y, config.color, config.name, config.shapeType));
+  });
 }
 
 // Record game state for replay
@@ -1993,6 +1999,13 @@ function gameLoop() {
     
     if (introTimer >= FIGHT_DURATION) {
       introState = 'battle';
+      // Give fighters random velocity when fight starts
+      for (let fighter of fighters) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 3 + Math.random() * 3;
+        fighter.vx = Math.cos(angle) * speed;
+        fighter.vy = Math.sin(angle) * speed;
+      }
     }
   } else if (introState === 'ko') {
     // KO dramatic pause
@@ -2178,82 +2191,85 @@ function drawFighterStatusPanels() {
     // Skill indicators below name
     const skillY = y + (isMobile ? 45 : 55);
     const skillSpacing = panelWidth / 3;
-    const skillSize = isMobile ? 10 : 12;
+    
+    // Get skill names based on shape type
+    const skillNames = getSkillNames(fighter.shapeType);
     
     // Skill 1
-    drawSkillIndicator(panelX + skillSpacing * 0.5, skillY, skillSize, fighter.cooldowns.skill1, 150, '#56d364');
+    drawSkillText(panelX + skillSpacing * 0.5, skillY, skillNames.skill1, fighter.cooldowns.skill1, 150, isMobile);
     
     // Skill 2
-    drawSkillIndicator(panelX + skillSpacing * 1.5, skillY, skillSize, fighter.cooldowns.skill2, 130, '#56d364');
+    drawSkillText(panelX + skillSpacing * 1.5, skillY, skillNames.skill2, fighter.cooldowns.skill2, 130, isMobile);
     
     // Ultimate
-    drawUltimateIndicator(panelX + skillSpacing * 2.5, skillY, skillSize, fighter.ultimateCharge, fighter.cooldowns.ultimate);
+    drawUltimateText(panelX + skillSpacing * 2.5, skillY, skillNames.ultimate, fighter.ultimateCharge, fighter.cooldowns.ultimate, isMobile);
     
     ctx.restore();
   });
 }
 
-function drawSkillIndicator(x, y, size, cooldown, maxCooldown, readyColor) {
+function getSkillNames(shapeType) {
+  const skillNames = {
+    circle: { skill1: 'Dash', skill2: 'Spin', ultimate: 'Meteor' },
+    triangle: { skill1: 'Pierce', skill2: 'Charge', ultimate: 'Spike' },
+    square: { skill1: 'Shield', skill2: 'Slam', ultimate: 'Quake' },
+    oval: { skill1: 'Speed', skill2: 'Drift', ultimate: 'Phase' },
+    hexagon: { skill1: 'Orbit', skill2: 'Hex', ultimate: 'Burst' },
+    spiral: { skill1: 'Vortex', skill2: 'Curve', ultimate: 'Tornado' },
+    rhombus: { skill1: 'Heavy', skill2: 'Boost', ultimate: 'Impact' },
+    star: { skill1: 'Burst', skill2: 'Beam', ultimate: 'Nova' },
+    heart: { skill1: 'Heal', skill2: 'Pulse', ultimate: 'Love' },
+    diamond: { skill1: 'Reflect', skill2: 'Sharp', ultimate: 'Prism' },
+    crescent: { skill1: 'Slice', skill2: 'Moon', ultimate: 'Eclipse' },
+    dodecahedron: { skill1: 'Adapt', skill2: 'Face', ultimate: 'Transform' }
+  };
+  return skillNames[shapeType] || { skill1: 'Skill 1', skill2: 'Skill 2', ultimate: 'Ult' };
+}
+
+function drawSkillText(x, y, name, cooldown, maxCooldown, isMobile) {
+  const fontSize = isMobile ? 10 : 11;
+  ctx.font = `bold ${fontSize}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
   if (cooldown > 0) {
     const progress = 1 - (cooldown / maxCooldown);
     ctx.fillStyle = progress > 0.8 ? '#ff6b6b' : progress > 0.5 ? '#ffd93d' : '#6b9eff';
   } else {
-    ctx.fillStyle = readyColor;
+    ctx.fillStyle = '#56d364';
     // Glow effect when ready
     ctx.save();
     ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
-    ctx.beginPath();
-    ctx.arc(x, y, size + 4, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = '#56d364';
+    ctx.fillText(name, x, y);
     ctx.restore();
   }
   
-  ctx.beginPath();
-  ctx.arc(x, y, size, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  ctx.fillText(name, x, y);
 }
 
-function drawUltimateIndicator(x, y, size, charge, cooldown) {
+function drawUltimateText(x, y, name, charge, cooldown, isMobile) {
+  const fontSize = isMobile ? 10 : 11;
+  ctx.font = `bold ${fontSize}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
   if (charge < 10) {
     ctx.fillStyle = '#ff9500';
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // Charge level
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 10px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(Math.floor(charge), x, y);
+    ctx.fillText(`${name} ${Math.floor(charge)}`, x, y);
   } else if (cooldown > 0) {
     ctx.fillStyle = '#ff6b6b';
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    ctx.fillText(name, x, y);
   } else {
     ctx.fillStyle = '#ff00ff';
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
     // Pulsing glow
     ctx.save();
     ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 80) * 0.3;
-    ctx.beginPath();
-    ctx.arc(x, y, size + 6, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = '#ff00ff';
+    ctx.fillText(name, x, y);
     ctx.restore();
+    ctx.fillStyle = '#ff00ff';
+    ctx.fillText(name, x, y);
   }
 }
 
