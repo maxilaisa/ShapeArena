@@ -1021,114 +1021,6 @@ class Fighter {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(Math.ceil(this.hp), this.x, this.y);
-
-    // Draw ability cooldown indicators
-    this.drawAbilityIndicators();
-  }
-
-  drawAbilityIndicators() {
-    const indicatorY = this.y - this.radius - 15;
-    const indicatorSize = 8;
-    const spacing = 14;
-    
-    // Skill 1 indicator
-    if (this.cooldowns.skill1 > 0) {
-      const progress = 1 - (this.cooldowns.skill1 / 150); // Normalize
-      ctx.fillStyle = progress > 0.8 ? '#ff6b6b' : progress > 0.5 ? '#ffd93d' : '#6b9eff';
-      ctx.beginPath();
-      ctx.arc(this.x - spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    } else {
-      // Ready indicator
-      ctx.fillStyle = '#56d364';
-      ctx.beginPath();
-      ctx.arc(this.x - spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      // Glow effect when ready
-      ctx.save();
-      ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
-      ctx.fillStyle = '#56d364';
-      ctx.beginPath();
-      ctx.arc(this.x - spacing, indicatorY, indicatorSize + 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Skill 2 indicator
-    if (this.cooldowns.skill2 > 0) {
-      const progress = 1 - (this.cooldowns.skill2 / 130);
-      ctx.fillStyle = progress > 0.8 ? '#ff6b6b' : progress > 0.5 ? '#ffd93d' : '#6b9eff';
-      ctx.beginPath();
-      ctx.arc(this.x, indicatorY, indicatorSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = '#56d364';
-      ctx.beginPath();
-      ctx.arc(this.x, indicatorY, indicatorSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.save();
-      ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
-      ctx.fillStyle = '#56d364';
-      ctx.beginPath();
-      ctx.arc(this.x, indicatorY, indicatorSize + 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Ultimate indicator
-    if (this.ultimateCharge < 10) {
-      const progress = this.ultimateCharge / 10;
-      ctx.fillStyle = '#ff9500';
-      ctx.beginPath();
-      ctx.arc(this.x + spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      // Charge level indicator
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 10px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(Math.floor(this.ultimateCharge), this.x + spacing, indicatorY);
-    } else if (this.cooldowns.ultimate > 0) {
-      ctx.fillStyle = '#ff6b6b';
-      ctx.beginPath();
-      ctx.arc(this.x + spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    } else {
-      // Ultimate ready - special indicator
-      ctx.fillStyle = '#ff00ff';
-      ctx.beginPath();
-      ctx.arc(this.x + spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // Pulsing glow
-      ctx.save();
-      ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 80) * 0.3;
-      ctx.fillStyle = '#ff00ff';
-      ctx.beginPath();
-      ctx.arc(this.x + spacing, indicatorY, indicatorSize + 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
   }
 
   drawShape(x, y, size, color, alpha) {
@@ -2223,26 +2115,137 @@ function gameLoop() {
   // Restore context (undo screen shake)
   ctx.restore();
 
-  // Draw fighter names at top (vs format)
-  const aliveFighters = fighters.filter(f => f.hp > 0);
-  if (aliveFighters.length >= 2 && introState === 'battle') {
-    const leftFighter = aliveFighters[0];
-    const rightFighter = aliveFighters[1];
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 24px Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`${leftFighter.name}`, arenaLeft, arenaTop - 40);
-    
-    ctx.textAlign = 'center';
-    ctx.fillText('VS', canvas.width / 2, arenaTop - 40);
-    
-    ctx.textAlign = 'right';
-    ctx.fillText(`${rightFighter.name}`, arenaLeft + ARENA_SIZE, arenaTop - 40);
-  }
+  // Draw fighter status panels outside arena
+  drawFighterStatusPanels();
 
   requestAnimationFrame(gameLoop);
 }
+
+function drawFighterStatusPanels() {
+  if (introState !== 'battle' && introState !== 'replay' && introState !== 'ko') return;
+  
+  const aliveFighters = fighters.filter(f => f.hp > 0);
+  if (aliveFighters.length === 0) return;
+  
+  const isMobile = canvas.width < 600;
+  const panelWidth = isMobile ? canvas.width * 0.4 : 180;
+  const panelHeight = isMobile ? 100 : 120;
+  const panelSpacing = isMobile ? 10 : 20;
+  const panelX = isMobile ? 10 : canvas.width - panelWidth - 20;
+  const panelY = isMobile ? canvas.height - (aliveFighters.length * (panelHeight + panelSpacing)) - 10 : arenaBottom + 20;
+  
+  aliveFighters.forEach((fighter, index) => {
+    const y = panelY + index * (panelHeight + panelSpacing);
+    
+    // Panel background
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.strokeStyle = fighter.color;
+    ctx.lineWidth = 2;
+    roundRect(ctx, panelX, y, panelWidth, panelHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Fighter name
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${isMobile ? 14 : 16}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(fighter.name, panelX + panelWidth / 2, y + 8);
+    
+    // HP bar
+    const hpPercent = fighter.hp / fighter.maxHp;
+    const hpBarY = y + (isMobile ? 28 : 35);
+    const hpBarWidth = panelWidth - 20;
+    const hpBarHeight = 8;
+    
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    roundRect(ctx, panelX + 10, hpBarY, hpBarWidth, hpBarHeight, 4);
+    ctx.fill();
+    
+    ctx.fillStyle = hpPercent > 0.5 ? '#56d364' : hpPercent > 0.25 ? '#ffd93d' : '#ff6b6b';
+    roundRect(ctx, panelX + 10, hpBarY, hpBarWidth * hpPercent, hpBarHeight, 4);
+    ctx.fill();
+    
+    // Skill indicators below name
+    const skillY = y + (isMobile ? 45 : 55);
+    const skillSpacing = panelWidth / 3;
+    const skillSize = isMobile ? 10 : 12;
+    
+    // Skill 1
+    drawSkillIndicator(panelX + skillSpacing * 0.5, skillY, skillSize, fighter.cooldowns.skill1, 150, '#56d364');
+    
+    // Skill 2
+    drawSkillIndicator(panelX + skillSpacing * 1.5, skillY, skillSize, fighter.cooldowns.skill2, 130, '#56d364');
+    
+    // Ultimate
+    drawUltimateIndicator(panelX + skillSpacing * 2.5, skillY, skillSize, fighter.ultimateCharge, fighter.cooldowns.ultimate);
+    
+    ctx.restore();
+  });
+}
+
+function drawSkillIndicator(x, y, size, cooldown, maxCooldown, readyColor) {
+  if (cooldown > 0) {
+    const progress = 1 - (cooldown / maxCooldown);
+    ctx.fillStyle = progress > 0.8 ? '#ff6b6b' : progress > 0.5 ? '#ffd93d' : '#6b9eff';
+  } else {
+    ctx.fillStyle = readyColor;
+    // Glow effect when ready
+    ctx.save();
+    ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
+    ctx.beginPath();
+    ctx.arc(x, y, size + 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function drawUltimateIndicator(x, y, size, charge, cooldown) {
+  if (charge < 10) {
+    ctx.fillStyle = '#ff9500';
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Charge level
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(Math.floor(charge), x, y);
+  } else if (cooldown > 0) {
+    ctx.fillStyle = '#ff6b6b';
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#ff00ff';
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Pulsing glow
+    ctx.save();
+    ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 80) * 0.3;
+    ctx.beginPath();
+    ctx.arc(x, y, size + 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
 gameLoop();
