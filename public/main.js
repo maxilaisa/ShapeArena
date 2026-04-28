@@ -1593,11 +1593,12 @@ function drawSelectionUI() {
   ctx.restore();
 
   // ── Layout maths ─────────────────────────────────────────────────────
-  const COLS = W < 600 ? 3 : 4;
-  const ROWS = W < 600 ? 4 : 3;
+  const isMobile = W < 600 || H > W * 1.5;
+  const COLS = isMobile ? 3 : 4;
+  const ROWS = isMobile ? 4 : 3;
   const padding = Math.min(W * 0.02, 15);
   const topOffset = titleY + titleH * 0.8;
-  const bottomReserve = Math.min(H * 0.16, 100); // space for button row
+  const bottomReserve = isMobile ? Math.min(H * 0.22, 160) : Math.min(H * 0.16, 100); // space for button row
 
   const gridW = W - padding * 2;
   const gridH = H - topOffset - bottomReserve - padding;
@@ -1724,15 +1725,12 @@ function drawSelectionUI() {
 
   // ── Bottom bar ───────────────────────────────────────────────────────
   const barY = H - bottomReserve + (bottomReserve - startButton.height) / 2;
-
-  // Mobile layout adjustment
-  const isMobile = W < 600;
   
   if (isMobile) {
     // Mobile: stack buttons vertically
-    const buttonWidth = Math.min(W * 0.7, 200);
-    const buttonHeight = 44;
-    const buttonSpacing = 12;
+    const buttonWidth = Math.min(W * 0.85, 220);
+    const buttonHeight = 48;
+    const buttonSpacing = 14;
     
     // Select All / None toggle
     const allSelected = selectedFighters.size === fighterConfigs.length;
@@ -2127,10 +2125,10 @@ function drawFighterStatusPanels() {
   const aliveFighters = fighters.filter(f => f.hp > 0);
   if (aliveFighters.length === 0) return;
   
-  const isMobile = canvas.width < 600;
-  const panelWidth = isMobile ? canvas.width * 0.4 : 180;
-  const panelHeight = isMobile ? 100 : 120;
-  const panelSpacing = isMobile ? 10 : 20;
+  const isMobile = canvas.width < 600 || canvas.height > canvas.width * 1.5;
+  const panelWidth = isMobile ? canvas.width * 0.45 : 180;
+  const panelHeight = isMobile ? 90 : 120;
+  const panelSpacing = isMobile ? 8 : 20;
   const panelX = isMobile ? 10 : canvas.width - panelWidth - 20;
   const panelY = isMobile ? canvas.height - (aliveFighters.length * (panelHeight + panelSpacing)) - 10 : arenaBottom + 20;
   
