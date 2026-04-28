@@ -2245,5 +2245,6 @@ function drawUltimateIndicator(x, y, size, charge, cooldown) {
     ctx.fill();
     ctx.restore();
   }
+}
 
 gameLoop();
