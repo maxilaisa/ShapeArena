@@ -2146,14 +2146,17 @@ function drawFighterStatusPanels() {
   if (aliveFighters.length === 0) return;
   
   const { arenaLeft, arenaTop } = getArenaBounds();
+  const arenaRight = arenaLeft + ARENA_SIZE;
   const arenaBottom = arenaTop + ARENA_SIZE;
   
   const isMobile = canvas.width < 600 || canvas.height > canvas.width * 1.5;
-  const panelWidth = isMobile ? canvas.width * 0.45 : 180;
-  const panelHeight = isMobile ? 90 : 120;
-  const panelSpacing = isMobile ? 8 : 20;
-  const panelX = isMobile ? 10 : canvas.width - panelWidth - 20;
-  const panelY = isMobile ? canvas.height - (aliveFighters.length * (panelHeight + panelSpacing)) - 10 : arenaBottom + 20;
+  const panelWidth = isMobile ? canvas.width * 0.45 : 160;
+  const panelHeight = isMobile ? 70 : 90;
+  const panelSpacing = isMobile ? 8 : 12;
+  
+  // Position panels beside the arena (to the right)
+  const panelX = arenaRight + 20;
+  const panelY = arenaTop + 20;
   
   aliveFighters.forEach((fighter, index) => {
     const y = panelY + index * (panelHeight + panelSpacing);
@@ -2233,19 +2236,20 @@ function drawSkillText(x, y, name, cooldown, maxCooldown, isMobile) {
   ctx.textBaseline = 'middle';
   
   if (cooldown > 0) {
-    const progress = 1 - (cooldown / maxCooldown);
-    ctx.fillStyle = progress > 0.8 ? '#ff6b6b' : progress > 0.5 ? '#ffd93d' : '#6b9eff';
+    const seconds = (cooldown / 60).toFixed(1);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${name}: ${seconds}s`, x, y);
   } else {
     ctx.fillStyle = '#56d364';
     // Glow effect when ready
     ctx.save();
     ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
     ctx.fillStyle = '#56d364';
-    ctx.fillText(name, x, y);
+    ctx.fillText(`${name}: READY`, x, y);
     ctx.restore();
+    ctx.fillStyle = '#56d364';
+    ctx.fillText(`${name}: READY`, x, y);
   }
-  
-  ctx.fillText(name, x, y);
 }
 
 function drawUltimateText(x, y, name, charge, cooldown, isMobile) {
@@ -2255,21 +2259,22 @@ function drawUltimateText(x, y, name, charge, cooldown, isMobile) {
   ctx.textBaseline = 'middle';
   
   if (charge < 10) {
-    ctx.fillStyle = '#ff9500';
-    ctx.fillText(`${name} ${Math.floor(charge)}`, x, y);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${name}: ${Math.floor(charge)}/10`, x, y);
   } else if (cooldown > 0) {
-    ctx.fillStyle = '#ff6b6b';
-    ctx.fillText(name, x, y);
+    const seconds = (cooldown / 60).toFixed(1);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(`${name}: ${seconds}s`, x, y);
   } else {
     ctx.fillStyle = '#ff00ff';
     // Pulsing glow
     ctx.save();
     ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 80) * 0.3;
     ctx.fillStyle = '#ff00ff';
-    ctx.fillText(name, x, y);
+    ctx.fillText(`${name}: READY`, x, y);
     ctx.restore();
     ctx.fillStyle = '#ff00ff';
-    ctx.fillText(name, x, y);
+    ctx.fillText(`${name}: READY`, x, y);
   }
 }
 
