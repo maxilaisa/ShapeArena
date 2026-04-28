@@ -1956,18 +1956,95 @@ function gameLoop() {
     }
   }
 
-  // Clear canvas with black background
-  ctx.fillStyle = '#000';
+  // Clear canvas with deep space background
+  const bgGrad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  bgGrad.addColorStop(0, '#0a0a1a');
+  bgGrad.addColorStop(1, '#05080f');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const { arenaLeft, arenaTop } = getArenaBounds();
 
-  // Draw arena (black square with white border)
-  ctx.fillStyle = '#000';
+  // --- Draw arena ---
+  // Floor gradient
+  const floorGrad = ctx.createRadialGradient(
+    arenaLeft + ARENA_SIZE / 2, arenaTop + ARENA_SIZE / 2, 0,
+    arenaLeft + ARENA_SIZE / 2, arenaTop + ARENA_SIZE / 2, ARENA_SIZE * 0.72
+  );
+  floorGrad.addColorStop(0, '#0d1117');
+  floorGrad.addColorStop(1, '#050810');
+  ctx.fillStyle = floorGrad;
   ctx.fillRect(arenaLeft, arenaTop, ARENA_SIZE, ARENA_SIZE);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = BORDER_WIDTH;
+
+  // Subtle grid lines
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  const gridStep = ARENA_SIZE / 10;
+  for (let i = 1; i < 10; i++) {
+    ctx.beginPath();
+    ctx.moveTo(arenaLeft + i * gridStep, arenaTop);
+    ctx.lineTo(arenaLeft + i * gridStep, arenaTop + ARENA_SIZE);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(arenaLeft, arenaTop + i * gridStep);
+    ctx.lineTo(arenaLeft + ARENA_SIZE, arenaTop + i * gridStep);
+    ctx.stroke();
+  }
+
+  // Center cross
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(arenaLeft + ARENA_SIZE / 2, arenaTop + 20);
+  ctx.lineTo(arenaLeft + ARENA_SIZE / 2, arenaTop + ARENA_SIZE - 20);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(arenaLeft + 20, arenaTop + ARENA_SIZE / 2);
+  ctx.lineTo(arenaLeft + ARENA_SIZE - 20, arenaTop + ARENA_SIZE / 2);
+  ctx.stroke();
+
+  // Center circle
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(arenaLeft + ARENA_SIZE / 2, arenaTop + ARENA_SIZE / 2, ARENA_SIZE * 0.2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Border glow (outer)
+  ctx.save();
+  ctx.shadowColor = 'rgba(100, 180, 255, 0.6)';
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = 'rgba(130, 200, 255, 0.85)';
+  ctx.lineWidth = 2.5;
   ctx.strokeRect(arenaLeft, arenaTop, ARENA_SIZE, ARENA_SIZE);
+  ctx.restore();
+
+  // Inner border
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(arenaLeft + 3, arenaTop + 3, ARENA_SIZE - 6, ARENA_SIZE - 6);
+
+  // Corner decorations
+  const cornerSize = 16;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(130, 200, 255, 0.9)';
+  ctx.lineWidth = 3;
+  const corners = [
+    [arenaLeft, arenaTop, 1, 1],
+    [arenaLeft + ARENA_SIZE, arenaTop, -1, 1],
+    [arenaLeft, arenaTop + ARENA_SIZE, 1, -1],
+    [arenaLeft + ARENA_SIZE, arenaTop + ARENA_SIZE, -1, -1]
+  ];
+  for (const [cx2, cy2, sx, sy] of corners) {
+    ctx.beginPath();
+    ctx.moveTo(cx2 + sx * cornerSize, cy2);
+    ctx.lineTo(cx2, cy2);
+    ctx.lineTo(cx2, cy2 + sy * cornerSize);
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // Handle intro animation
   if (introState === 'selection') {
@@ -2176,65 +2253,197 @@ function drawFighterStatusPanels() {
   const arenaBottom = arenaTop + ARENA_SIZE;
   
   const isMobile = canvas.width < 600 || canvas.height > canvas.width * 1.5;
-  const panelWidth = isMobile ? canvas.width * 0.3 : 140;
-  const panelHeight = isMobile ? 80 : 100;
-  const panelSpacing = isMobile ? 10 : 15;
-  
-  // Position panels below the arena
-  const panelX = arenaLeft + 20;
-  const panelY = arenaBottom + 20;
-  
+
+  // --- Layout: panels spread horizontally below the arena ---
+  const totalPanelW = ARENA_SIZE;
+  const panelSpacing = isMobile ? 6 : 10;
+  const count = aliveFighters.length;
+  const panelWidth = Math.min(
+    isMobile ? 160 : 200,
+    (totalPanelW - panelSpacing * (count - 1)) / count
+  );
+  // Height: name row + hp bar row + 3 skill rows
+  const nameH    = isMobile ? 20 : 22;
+  const hpH      = isMobile ? 10 : 12;
+  const skillRowH = isMobile ? 18 : 20;
+  const padV      = isMobile ? 8  : 10;
+  const padH      = isMobile ? 8  : 10;
+  const panelHeight = padV + nameH + 6 + hpH + 6 + skillRowH * 3 + padV;
+
+  const startX = arenaLeft;
+  const panelY = arenaBottom + (isMobile ? 12 : 18);
+
   aliveFighters.forEach((fighter, index) => {
-    const y = panelY + index * (panelHeight + panelSpacing);
-    
-    // Panel background
+    const panelX = startX + index * (panelWidth + panelSpacing);
+    const skillNames = getSkillNames(fighter.shapeType);
+
     ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+
+    // --- Panel shadow ---
+    ctx.shadowColor = fighter.color;
+    ctx.shadowBlur = 10;
+
+    // Panel background
+    ctx.fillStyle = 'rgba(10, 10, 20, 0.88)';
+    roundRect(ctx, panelX, panelY, panelWidth, panelHeight, 10);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Panel border (fighter color)
     ctx.strokeStyle = fighter.color;
     ctx.lineWidth = 2;
-    roundRect(ctx, panelX, y, panelWidth, panelHeight, 10);
-    ctx.fill();
+    roundRect(ctx, panelX, panelY, panelWidth, panelHeight, 10);
     ctx.stroke();
-    
-    // Fighter name
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${isMobile ? 14 : 16}px Arial`;
+
+    // Thin color accent top bar
+    ctx.fillStyle = fighter.color;
+    ctx.globalAlpha = 0.35;
+    roundRect(ctx, panelX + 2, panelY + 2, panelWidth - 4, 4, 3);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    let curY = panelY + padV;
+
+    // --- Fighter name ---
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${isMobile ? 13 : 15}px 'Segoe UI', Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(fighter.name, panelX + panelWidth / 2, y + 8);
-    
-    // HP bar
-    const hpPercent = fighter.hp / fighter.maxHp;
-    const hpBarY = y + (isMobile ? 28 : 35);
-    const hpBarWidth = panelWidth - 20;
-    const hpBarHeight = 8;
-    
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    roundRect(ctx, panelX + 10, hpBarY, hpBarWidth, hpBarHeight, 4);
+    ctx.fillText(fighter.name, panelX + panelWidth / 2, curY);
+    curY += nameH + 4;
+
+    // --- HP bar ---
+    const hpPercent = Math.max(0, fighter.hp / fighter.maxHp);
+    const hpBarW = panelWidth - padH * 2;
+    const hpColor = hpPercent > 0.5 ? '#56d364' : hpPercent > 0.25 ? '#ffd93d' : '#ff6b6b';
+
+    // HP label inline
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${isMobile ? 9 : 10}px Arial`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('HP', panelX + padH, curY);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${Math.ceil(fighter.hp)}`, panelX + panelWidth - padH, curY);
+
+    const hpBarY = curY + (isMobile ? 10 : 11);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    roundRect(ctx, panelX + padH, hpBarY, hpBarW, hpH, hpH / 2);
     ctx.fill();
-    
-    ctx.fillStyle = hpPercent > 0.5 ? '#56d364' : hpPercent > 0.25 ? '#ffd93d' : '#ff6b6b';
-    roundRect(ctx, panelX + 10, hpBarY, hpBarWidth * hpPercent, hpBarHeight, 4);
-    ctx.fill();
-    
-    // Skill indicators below name
-    const skillY = y + (isMobile ? 45 : 55);
-    const skillSpacing = panelWidth / 3;
-    
-    // Get skill names based on shape type
-    const skillNames = getSkillNames(fighter.shapeType);
-    
-    // Skill 1
-    drawSkillText(panelX + skillSpacing * 0.5, skillY, skillNames.skill1, fighter.cooldowns.skill1, 150, isMobile);
-    
-    // Skill 2
-    drawSkillText(panelX + skillSpacing * 1.5, skillY, skillNames.skill2, fighter.cooldowns.skill2, 130, isMobile);
-    
-    // Ultimate
-    drawUltimateText(panelX + skillSpacing * 2.5, skillY, skillNames.ultimate, fighter.ultimateCharge, fighter.cooldowns.ultimate, isMobile);
-    
+    if (hpPercent > 0) {
+      ctx.fillStyle = hpColor;
+      roundRect(ctx, panelX + padH, hpBarY, hpBarW * hpPercent, hpH, hpH / 2);
+      ctx.fill();
+    }
+    curY += (isMobile ? 10 : 11) + hpH + 8;
+
+    // --- Skills: one per row, full width ---
+    const skills = [
+      { label: skillNames.skill1, cd: fighter.cooldowns.skill1, maxCd: 150, isUlt: false },
+      { label: skillNames.skill2, cd: fighter.cooldowns.skill2, maxCd: 130, isUlt: false },
+      { label: skillNames.ultimate, cd: fighter.cooldowns.ultimate, maxCd: 180, isUlt: true, charge: fighter.ultimateCharge }
+    ];
+
+    skills.forEach(skill => {
+      drawSkillRow(ctx, panelX + padH, curY, panelWidth - padH * 2, skillRowH - 2, skill, isMobile);
+      curY += skillRowH;
+    });
+
     ctx.restore();
   });
+}
+
+function drawSkillRow(ctx, x, y, w, h, skill, isMobile) {
+  const isUlt = skill.isUlt;
+  const ready = isUlt
+    ? (skill.charge >= 10 && skill.cd === 0)
+    : (skill.cd === 0);
+
+  const pulse = 0.7 + Math.sin(Date.now() / 120) * 0.3;
+
+  // Row background pill
+  ctx.fillStyle = ready
+    ? (isUlt ? `rgba(180,0,255,${0.15 * pulse})` : `rgba(86,211,100,${0.15 * pulse})`)
+    : 'rgba(255,255,255,0.05)';
+  roundRect(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+
+  // Skill name (left)
+  const nameColor = ready
+    ? (isUlt ? '#dd77ff' : '#56d364')
+    : 'rgba(255,255,255,0.75)';
+  ctx.fillStyle = nameColor;
+  ctx.font = `bold ${isMobile ? 10 : 11}px 'Segoe UI', Arial`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const label = isUlt ? `★ ${skill.label}` : skill.label;
+  ctx.fillText(label, x + 6, y + h / 2);
+
+  // Status / cooldown bar (right side)
+  const barW = w * 0.38;
+  const barH = isMobile ? 4 : 5;
+  const barX = x + w - barW - 4;
+  const barY = y + (h - barH) / 2;
+
+  if (isUlt) {
+    if (skill.charge < 10) {
+      // Charge bar (purple)
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      roundRect(ctx, barX, barY, barW, barH, barH / 2);
+      ctx.fill();
+      ctx.fillStyle = '#aa44ff';
+      roundRect(ctx, barX, barY, barW * (skill.charge / 10), barH, barH / 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = `${isMobile ? 9 : 10}px Arial`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${Math.floor(skill.charge)}/10`, barX - 3, y + h / 2);
+    } else if (skill.cd > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      roundRect(ctx, barX, barY, barW, barH, barH / 2);
+      ctx.fill();
+      ctx.fillStyle = '#aa44ff';
+      roundRect(ctx, barX, barY, barW * (1 - skill.cd / skill.maxCd), barH, barH / 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = `${isMobile ? 9 : 10}px Arial`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${(skill.cd / 60).toFixed(1)}s`, barX - 3, y + h / 2);
+    } else {
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#dd77ff';
+      ctx.font = `bold ${isMobile ? 10 : 11}px Arial`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('READY', x + w - 4, y + h / 2);
+      ctx.globalAlpha = 1;
+    }
+  } else {
+    if (skill.cd > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      roundRect(ctx, barX, barY, barW, barH, barH / 2);
+      ctx.fill();
+      ctx.fillStyle = '#56d364';
+      roundRect(ctx, barX, barY, barW * (1 - skill.cd / skill.maxCd), barH, barH / 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = `${isMobile ? 9 : 10}px Arial`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${(skill.cd / 60).toFixed(1)}s`, barX - 3, y + h / 2);
+    } else {
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#56d364';
+      ctx.font = `bold ${isMobile ? 10 : 11}px Arial`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('READY', x + w - 4, y + h / 2);
+      ctx.globalAlpha = 1;
+    }
+  }
 }
 
 function getSkillNames(shapeType) {
@@ -2255,53 +2464,6 @@ function getSkillNames(shapeType) {
   return skillNames[shapeType] || { skill1: 'Skill 1', skill2: 'Skill 2', ultimate: 'Ult' };
 }
 
-function drawSkillText(x, y, name, cooldown, maxCooldown, isMobile) {
-  const fontSize = isMobile ? 12 : 14;
-  ctx.font = `bold ${fontSize}px Arial`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  
-  if (cooldown > 0) {
-    const seconds = (cooldown / 60).toFixed(1);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`${name}: ${seconds}s`, x, y);
-  } else {
-    ctx.fillStyle = '#56d364';
-    // Glow effect when ready
-    ctx.save();
-    ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
-    ctx.fillStyle = '#56d364';
-    ctx.fillText(`${name}: READY`, x, y);
-    ctx.restore();
-    ctx.fillStyle = '#56d364';
-    ctx.fillText(`${name}: READY`, x, y);
-  }
-}
 
-function drawUltimateText(x, y, name, charge, cooldown, isMobile) {
-  const fontSize = isMobile ? 12 : 14;
-  ctx.font = `bold ${fontSize}px Arial`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  
-  if (charge < 10) {
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`${name}: ${Math.floor(charge)}/10`, x, y);
-  } else if (cooldown > 0) {
-    const seconds = (cooldown / 60).toFixed(1);
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`${name}: ${seconds}s`, x, y);
-  } else {
-    ctx.fillStyle = '#ff00ff';
-    // Pulsing glow
-    ctx.save();
-    ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 80) * 0.3;
-    ctx.fillStyle = '#ff00ff';
-    ctx.fillText(`${name}: READY`, x, y);
-    ctx.restore();
-    ctx.fillStyle = '#ff00ff';
-    ctx.fillText(`${name}: READY`, x, y);
-  }
-}
 
 gameLoop();
