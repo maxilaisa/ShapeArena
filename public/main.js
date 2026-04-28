@@ -891,7 +891,7 @@ class Fighter {
   }
 
   attack(target) {
-    const damage = 5 + Math.random() * 10;
+    const damage = 2 + Math.random() * 5;
     target.hp -= damage;
     
     // Trigger hit flash on target
@@ -1021,6 +1021,114 @@ class Fighter {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(Math.ceil(this.hp), this.x, this.y);
+
+    // Draw ability cooldown indicators
+    this.drawAbilityIndicators();
+  }
+
+  drawAbilityIndicators() {
+    const indicatorY = this.y - this.radius - 15;
+    const indicatorSize = 8;
+    const spacing = 14;
+    
+    // Skill 1 indicator
+    if (this.cooldowns.skill1 > 0) {
+      const progress = 1 - (this.cooldowns.skill1 / 150); // Normalize
+      ctx.fillStyle = progress > 0.8 ? '#ff6b6b' : progress > 0.5 ? '#ffd93d' : '#6b9eff';
+      ctx.beginPath();
+      ctx.arc(this.x - spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      // Ready indicator
+      ctx.fillStyle = '#56d364';
+      ctx.beginPath();
+      ctx.arc(this.x - spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Glow effect when ready
+      ctx.save();
+      ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
+      ctx.fillStyle = '#56d364';
+      ctx.beginPath();
+      ctx.arc(this.x - spacing, indicatorY, indicatorSize + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Skill 2 indicator
+    if (this.cooldowns.skill2 > 0) {
+      const progress = 1 - (this.cooldowns.skill2 / 130);
+      ctx.fillStyle = progress > 0.8 ? '#ff6b6b' : progress > 0.5 ? '#ffd93d' : '#6b9eff';
+      ctx.beginPath();
+      ctx.arc(this.x, indicatorY, indicatorSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#56d364';
+      ctx.beginPath();
+      ctx.arc(this.x, indicatorY, indicatorSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.save();
+      ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 100) * 0.2;
+      ctx.fillStyle = '#56d364';
+      ctx.beginPath();
+      ctx.arc(this.x, indicatorY, indicatorSize + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Ultimate indicator
+    if (this.ultimateCharge < 10) {
+      const progress = this.ultimateCharge / 10;
+      ctx.fillStyle = '#ff9500';
+      ctx.beginPath();
+      ctx.arc(this.x + spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Charge level indicator
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(Math.floor(this.ultimateCharge), this.x + spacing, indicatorY);
+    } else if (this.cooldowns.ultimate > 0) {
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.arc(this.x + spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      // Ultimate ready - special indicator
+      ctx.fillStyle = '#ff00ff';
+      ctx.beginPath();
+      ctx.arc(this.x + spacing, indicatorY, indicatorSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Pulsing glow
+      ctx.save();
+      ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 80) * 0.3;
+      ctx.fillStyle = '#ff00ff';
+      ctx.beginPath();
+      ctx.arc(this.x + spacing, indicatorY, indicatorSize + 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   drawShape(x, y, size, color, alpha) {
@@ -1308,14 +1416,14 @@ function handleCollisions(fighters) {
           // Damage on collision
           const collisionSpeed = Math.abs(dvn);
           if (collisionSpeed > 3) {
-            const damage = Math.floor(collisionSpeed * 2) + Math.floor(Math.random() * 5);
+            const damage = Math.floor(collisionSpeed * 0.8) + Math.floor(Math.random() * 3);
             const luckRoll = Math.random();
             
             // Ultimate charge system
             let chargeAmount = 1; // light hit default
-            if (damage > 10) chargeAmount = 2; // clean hit
+            if (damage > 5) chargeAmount = 2; // clean hit
             if (collisionSpeed > 8) chargeAmount = 3; // wall combo
-            if (damage > 20) chargeAmount = 4; // counter hit
+            if (damage > 10) chargeAmount = 4; // counter hit
             
             // Award charge to the attacker
             if (luckRoll < 0.5) {
@@ -1725,72 +1833,154 @@ function drawSelectionUI() {
   // ── Bottom bar ───────────────────────────────────────────────────────
   const barY = H - bottomReserve + (bottomReserve - startButton.height) / 2;
 
-  // Select All / None toggle
-  const allSelected = selectedFighters.size === fighterConfigs.length;
-  selectAllButton.x = cx - startButton.width / 2 - selectAllButton.width - 16;
-  selectAllButton.y = barY;
-  ctx.fillStyle = allSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)';
-  roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
-  ctx.stroke();
-  ctx.fillStyle = '#ddd';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(allSelected ? 'DESELECT ALL' : 'SELECT ALL', selectAllButton.x + selectAllButton.width / 2, selectAllButton.y + selectAllButton.height / 2);
-
-  // Count badge
-  const countStr = `${selectedFighters.size} / ${fighterConfigs.length}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  roundRect(ctx, cx - 38, barY + 4, 76, selectAllButton.height - 8, 6);
-  ctx.fill();
-  ctx.fillStyle = '#ccc';
-  ctx.font = 'bold 14px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(countStr, cx, barY + selectAllButton.height / 2);
-
-  // Start button
-  startButton.x = cx + 54;
-  startButton.y = barY - (startButton.height - selectAllButton.height) / 2;
-  const canStart = selectedFighters.size >= 2;
-  const btnGrad = ctx.createLinearGradient(startButton.x, startButton.y, startButton.x, startButton.y + startButton.height);
-  if (canStart) {
-    btnGrad.addColorStop(0, '#56d364');
-    btnGrad.addColorStop(1, '#2ea043');
-  } else {
-    btnGrad.addColorStop(0, '#444');
-    btnGrad.addColorStop(1, '#333');
-  }
-  ctx.fillStyle = btnGrad;
-  roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
-  ctx.fill();
-  if (canStart) {
-    ctx.save();
-    ctx.shadowColor = '#56d364';
-    ctx.shadowBlur = 12;
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  // Mobile layout adjustment
+  const isMobile = W < 600;
+  
+  if (isMobile) {
+    // Mobile: stack buttons vertically
+    const buttonWidth = Math.min(W * 0.7, 200);
+    const buttonHeight = 44;
+    const buttonSpacing = 12;
+    
+    // Select All / None toggle
+    const allSelected = selectedFighters.size === fighterConfigs.length;
+    selectAllButton.width = buttonWidth;
+    selectAllButton.height = buttonHeight;
+    selectAllButton.x = cx - buttonWidth / 2;
+    selectAllButton.y = barY - buttonHeight - buttonSpacing;
+    ctx.fillStyle = allSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)';
+    roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 1.5;
-    roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
+    roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
     ctx.stroke();
-    ctx.restore();
-  }
-  ctx.fillStyle = canStart ? '#fff' : '#666';
-  ctx.font = `bold 20px Arial`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('⚔  START BATTLE', startButton.x + startButton.width / 2, startButton.y + startButton.height / 2);
-
-  // Warning if too few selected
-  if (!canStart) {
-    ctx.fillStyle = '#ff6b6b';
-    ctx.font = '13px Arial';
+    ctx.fillStyle = '#ddd';
+    ctx.font = 'bold 13px Arial';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('Select at least 2 fighters', cx, startButton.y + startButton.height + 6);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(allSelected ? 'DESELECT ALL' : 'SELECT ALL', selectAllButton.x + selectAllButton.width / 2, selectAllButton.y + selectAllButton.height / 2);
+
+    // Count badge above select all
+    const countStr = `${selectedFighters.size} / ${fighterConfigs.length}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    roundRect(ctx, cx - 35, selectAllButton.y - 30, 70, 24, 6);
+    ctx.fill();
+    ctx.fillStyle = '#ccc';
+    ctx.font = 'bold 13px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(countStr, cx, selectAllButton.y - 18);
+
+    // Start button
+    startButton.width = buttonWidth;
+    startButton.height = buttonHeight;
+    startButton.x = cx - buttonWidth / 2;
+    startButton.y = barY;
+    const canStart = selectedFighters.size >= 2;
+    const btnGrad = ctx.createLinearGradient(startButton.x, startButton.y, startButton.x, startButton.y + startButton.height);
+    if (canStart) {
+      btnGrad.addColorStop(0, '#56d364');
+      btnGrad.addColorStop(1, '#2ea043');
+    } else {
+      btnGrad.addColorStop(0, '#444');
+      btnGrad.addColorStop(1, '#333');
+    }
+    ctx.fillStyle = btnGrad;
+    roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
+    ctx.fill();
+    if (canStart) {
+      ctx.save();
+      ctx.shadowColor = '#56d364';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = canStart ? '#fff' : '#666';
+    ctx.font = `bold 16px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚔ START BATTLE', startButton.x + startButton.width / 2, startButton.y + startButton.height / 2);
+
+    // Warning if too few selected
+    if (!canStart) {
+      ctx.fillStyle = '#ff6b6b';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('Select at least 2 fighters', cx, startButton.y + startButton.height + 6);
+    }
+  } else {
+    // Desktop: horizontal layout
+    const allSelected = selectedFighters.size === fighterConfigs.length;
+    selectAllButton.x = cx - startButton.width / 2 - selectAllButton.width - 16;
+    selectAllButton.y = barY;
+    ctx.fillStyle = allSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)';
+    roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
+    ctx.stroke();
+    ctx.fillStyle = '#ddd';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(allSelected ? 'DESELECT ALL' : 'SELECT ALL', selectAllButton.x + selectAllButton.width / 2, selectAllButton.y + selectAllButton.height / 2);
+
+    // Count badge
+    const countStr = `${selectedFighters.size} / ${fighterConfigs.length}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    roundRect(ctx, cx - 38, barY + 4, 76, selectAllButton.height - 8, 6);
+    ctx.fill();
+    ctx.fillStyle = '#ccc';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(countStr, cx, barY + selectAllButton.height / 2);
+
+    // Start button
+    startButton.x = cx + 54;
+    startButton.y = barY - (startButton.height - selectAllButton.height) / 2;
+    const canStart = selectedFighters.size >= 2;
+    const btnGrad = ctx.createLinearGradient(startButton.x, startButton.y, startButton.x, startButton.y + startButton.height);
+    if (canStart) {
+      btnGrad.addColorStop(0, '#56d364');
+      btnGrad.addColorStop(1, '#2ea043');
+    } else {
+      btnGrad.addColorStop(0, '#444');
+      btnGrad.addColorStop(1, '#333');
+    }
+    ctx.fillStyle = btnGrad;
+    roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
+    ctx.fill();
+    if (canStart) {
+      ctx.save();
+      ctx.shadowColor = '#56d364';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, startButton.x, startButton.y, startButton.width, startButton.height, 10);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = canStart ? '#fff' : '#666';
+    ctx.font = `bold 20px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚔  START BATTLE', startButton.x + startButton.width / 2, startButton.y + startButton.height / 2);
+
+    // Warning if too few selected
+    if (!canStart) {
+      ctx.fillStyle = '#ff6b6b';
+      ctx.font = '13px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('Select at least 2 fighters', cx, startButton.y + startButton.height + 6);
+    }
   }
 }
 
