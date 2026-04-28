@@ -1733,17 +1733,19 @@ function drawSelectionUI() {
   const barY = H - bottomReserve + (bottomReserve - startButton.height) / 2;
   
   if (isMobile) {
-    // Mobile: stack buttons vertically
+    // Mobile: stack buttons vertically at bottom
     const buttonWidth = Math.min(W * 0.85, 220);
-    const buttonHeight = 48;
-    const buttonSpacing = 14;
+    const buttonHeight = 50;
+    const buttonSpacing = 12;
+    const totalButtonHeight = buttonHeight * 2 + buttonSpacing;
+    const startY = H - totalButtonHeight - 20;
     
-    // Select All / None toggle
+    // Select All / None toggle (top button)
     const allSelected = selectedFighters.size === fighterConfigs.length;
     selectAllButton.width = buttonWidth;
     selectAllButton.height = buttonHeight;
     selectAllButton.x = cx - buttonWidth / 2;
-    selectAllButton.y = barY - buttonHeight - buttonSpacing;
+    selectAllButton.y = startY;
     ctx.fillStyle = allSelected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)';
     roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
     ctx.fill();
@@ -1752,7 +1754,7 @@ function drawSelectionUI() {
     roundRect(ctx, selectAllButton.x, selectAllButton.y, selectAllButton.width, selectAllButton.height, 8);
     ctx.stroke();
     ctx.fillStyle = '#ddd';
-    ctx.font = 'bold 13px Arial';
+    ctx.font = 'bold 14px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(allSelected ? 'DESELECT ALL' : 'SELECT ALL', selectAllButton.x + selectAllButton.width / 2, selectAllButton.y + selectAllButton.height / 2);
@@ -1760,19 +1762,19 @@ function drawSelectionUI() {
     // Count badge above select all
     const countStr = `${selectedFighters.size} / ${fighterConfigs.length}`;
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    roundRect(ctx, cx - 35, selectAllButton.y - 30, 70, 24, 6);
+    roundRect(ctx, cx - 35, startY - 30, 70, 24, 6);
     ctx.fill();
     ctx.fillStyle = '#ccc';
     ctx.font = 'bold 13px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(countStr, cx, selectAllButton.y - 18);
+    ctx.fillText(countStr, cx, startY - 18);
 
-    // Start button
+    // Start button (bottom button)
     startButton.width = buttonWidth;
     startButton.height = buttonHeight;
     startButton.x = cx - buttonWidth / 2;
-    startButton.y = barY;
+    startButton.y = startY + buttonHeight + buttonSpacing;
     const canStart = selectedFighters.size >= 2;
     const btnGrad = ctx.createLinearGradient(startButton.x, startButton.y, startButton.x, startButton.y + startButton.height);
     if (canStart) {
@@ -2133,10 +2135,34 @@ function gameLoop() {
   // Restore context (undo screen shake)
   ctx.restore();
 
+  // Draw VS display at top
+  drawVSDisplay();
+
   // Draw fighter status panels outside arena
   drawFighterStatusPanels();
 
   requestAnimationFrame(gameLoop);
+}
+
+function drawVSDisplay() {
+  if (introState !== 'battle' && introState !== 'replay' && introState !== 'ko') return;
+  
+  const aliveFighters = fighters.filter(f => f.hp > 0);
+  if (aliveFighters.length < 2) return;
+  
+  const { arenaLeft, arenaTop } = getArenaBounds();
+  const isMobile = canvas.width < 600 || canvas.height > canvas.width * 1.5;
+  
+  ctx.save();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${isMobile ? 14 : 18}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  
+  // Build VS string: "Alpha vs Beta vs Gamma..."
+  const vsString = aliveFighters.map(f => f.name).join(' vs ');
+  ctx.fillText(vsString, canvas.width / 2, arenaTop - 15);
+  ctx.restore();
 }
 
 function drawFighterStatusPanels() {
@@ -2150,13 +2176,13 @@ function drawFighterStatusPanels() {
   const arenaBottom = arenaTop + ARENA_SIZE;
   
   const isMobile = canvas.width < 600 || canvas.height > canvas.width * 1.5;
-  const panelWidth = isMobile ? canvas.width * 0.45 : 160;
-  const panelHeight = isMobile ? 70 : 90;
-  const panelSpacing = isMobile ? 8 : 12;
+  const panelWidth = isMobile ? canvas.width * 0.3 : 140;
+  const panelHeight = isMobile ? 80 : 100;
+  const panelSpacing = isMobile ? 10 : 15;
   
-  // Position panels beside the arena (to the right)
-  const panelX = arenaRight + 20;
-  const panelY = arenaTop + 20;
+  // Position panels below the arena
+  const panelX = arenaLeft + 20;
+  const panelY = arenaBottom + 20;
   
   aliveFighters.forEach((fighter, index) => {
     const y = panelY + index * (panelHeight + panelSpacing);
@@ -2230,7 +2256,7 @@ function getSkillNames(shapeType) {
 }
 
 function drawSkillText(x, y, name, cooldown, maxCooldown, isMobile) {
-  const fontSize = isMobile ? 10 : 11;
+  const fontSize = isMobile ? 12 : 14;
   ctx.font = `bold ${fontSize}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -2253,7 +2279,7 @@ function drawSkillText(x, y, name, cooldown, maxCooldown, isMobile) {
 }
 
 function drawUltimateText(x, y, name, charge, cooldown, isMobile) {
-  const fontSize = isMobile ? 10 : 11;
+  const fontSize = isMobile ? 12 : 14;
   ctx.font = `bold ${fontSize}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
