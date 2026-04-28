@@ -10,15 +10,23 @@ document.body.appendChild(canvas);
 const ctx = canvas.getContext('2d');
 
 // Arena configuration
-const ARENA_SIZE = 800;
+let ARENA_SIZE = 800;
 const BORDER_WIDTH = 2;
+
+// Calculate arena size based on screen
+function updateArenaSize() {
+  const minDimension = Math.min(window.innerWidth, window.innerHeight);
+  ARENA_SIZE = Math.min(800, minDimension * 0.9);
+}
 
 // Resize canvas to fit arena
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+  updateArenaSize();
 }
 resize();
+updateArenaSize();
 window.addEventListener('resize', resize);
 
 // Intro animation state
@@ -1572,7 +1580,8 @@ function drawSelectionUI() {
   ctx.fillRect(0, 0, W, H);
 
   // ── Title ────────────────────────────────────────────────────────────
-  const titleH = Math.min(H * 0.09, 52);
+  const titleH = Math.min(H * 0.08, 48);
+  const titleY = Math.min(H * 0.06, 45);
   ctx.save();
   ctx.shadowColor = '#7ec8ff';
   ctx.shadowBlur = 18;
@@ -1580,15 +1589,15 @@ function drawSelectionUI() {
   ctx.font = `bold ${titleH}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('SELECT FIGHTERS', cx, titleH * 0.7);
+  ctx.fillText('SELECT FIGHTERS', cx, titleY);
   ctx.restore();
 
   // ── Layout maths ─────────────────────────────────────────────────────
-  const COLS = 4;
-  const ROWS = 3;
-  const padding = Math.min(W * 0.025, 20);
-  const topOffset = titleH * 1.4;
-  const bottomReserve = Math.min(H * 0.14, 90); // space for button row
+  const COLS = W < 600 ? 3 : 4;
+  const ROWS = W < 600 ? 4 : 3;
+  const padding = Math.min(W * 0.02, 15);
+  const topOffset = titleY + titleH * 0.8;
+  const bottomReserve = Math.min(H * 0.16, 100); // space for button row
 
   const gridW = W - padding * 2;
   const gridH = H - topOffset - bottomReserve - padding;
