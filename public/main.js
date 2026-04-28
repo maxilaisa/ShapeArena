@@ -2132,6 +2132,9 @@ function drawFighterStatusPanels() {
   const aliveFighters = fighters.filter(f => f.hp > 0);
   if (aliveFighters.length === 0) return;
   
+  const { arenaLeft, arenaTop } = getArenaBounds();
+  const arenaBottom = arenaTop + ARENA_SIZE;
+  
   const isMobile = canvas.width < 600 || canvas.height > canvas.width * 1.5;
   const panelWidth = isMobile ? canvas.width * 0.45 : 180;
   const panelHeight = isMobile ? 90 : 120;
