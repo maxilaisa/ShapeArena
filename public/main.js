@@ -33,7 +33,7 @@ window.addEventListener('resize', resize);
 let introState = 'selection'; // 'selection', 'ready', 'fight', 'battle', 'replay', 'ko'
 let introTimer = 0;
 const READY_DURATION = 60; // frames
-const FIGHT_DURATION = 30; // frames
+const FIGHT_DURATION = 60; // frames (increased to ensure transition)
 
 // Hit effects
 let hitPauseTimer = 0;
@@ -1983,6 +1983,13 @@ function gameLoop() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('FIGHT!', canvas.width / 2, canvas.height / 2);
+    
+    // Draw fighters during fight text
+    for (let fighter of fighters) {
+      if (fighter.hp > 0) {
+        fighter.draw();
+      }
+    }
     
     if (introTimer >= FIGHT_DURATION) {
       introState = 'battle';
