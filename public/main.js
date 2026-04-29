@@ -1641,8 +1641,8 @@ function handleCollisions(fighters) {
           f2.vx += impulse * m1 * nx * restitution;
           f2.vy += impulse * m1 * ny * restitution;
           
-          // Add minimum knockback to ensure wall hits
-          const minKnockback = 5;
+          // Add guaranteed minimum knockback to ensure wall hits
+          const minKnockback = 20;
           f1.vx -= nx * minKnockback;
           f1.vy -= ny * minKnockback;
           f2.vx += nx * minKnockback;
