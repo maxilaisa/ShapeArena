@@ -341,10 +341,6 @@ class Fighter {
     this.x += this.vx;
     this.y += this.vy;
 
-    // Clamp position to arena bounds to prevent teleportation
-    this.x = Math.max(arenaLeft + this.radius, Math.min(arenaRight - this.radius, this.x));
-    this.y = Math.max(arenaTop + this.radius, Math.min(arenaBottom - this.radius, this.y));
-
     // Check for NaN/Infinity values and reset if found
     if (!isFinite(this.x) || !isFinite(this.y) || !isFinite(this.vx) || !isFinite(this.vy)) {
       this.x = (arenaLeft + arenaRight) / 2;
@@ -353,7 +349,7 @@ class Fighter {
       this.vy = (Math.random() - 0.5) * 4;
     }
 
-    // Wall collision — clears needsWallBounce
+    // Wall collision — clears needsWallBounce (must be before position clamping)
     const ricochetEffect = this.activeEffects.find(e => e.type === 'ricochet');
     const bounceMultiplier = ricochetEffect ? 3.0 : 2.5;
     let hitWall = false;
@@ -382,6 +378,10 @@ class Fighter {
       if (!isFinite(this.vy) || Math.abs(this.vy) < MIN_SPEED) this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
       hitWall = true;
     }
+
+    // Clamp position to arena bounds as safety net (after wall collision)
+    this.x = Math.max(arenaLeft + this.radius, Math.min(arenaRight - this.radius, this.x));
+    this.y = Math.max(arenaTop + this.radius, Math.min(arenaBottom - this.radius, this.y));
 
     if (hitWall && this.needsWallBounce) {
       this.needsWallBounce = false;
