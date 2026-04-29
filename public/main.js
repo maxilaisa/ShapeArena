@@ -42,7 +42,7 @@ let replayIndex = 0;
 let koTimer = 0;
 const KO_PAUSE_DURATION = 120;
 
-const FRICTION = 0.98;
+const FRICTION = 0.96;
 const ELASTICITY = 0.8;
 const GRAVITY = 0;
 const MIN_SPEED = 4;
@@ -227,22 +227,22 @@ class Fighter {
 
   initShapePhysics() {
     // Shape-specific physics: maxSpeed, wallBounceMultiplier, collisionRestitution
-    // Collision knockback is high to reach walls, wall bounce is low to prevent excessive bouncing
+    // Lower values to reduce excessive bouncing for more engaging matches
     const shapePhysics = {
-      circle:       { maxSpeed: 12, wallBounce: 1.2, collisionRestitution: 3.0 },
-      triangle:     { maxSpeed: 15, wallBounce: 1.3, collisionRestitution: 3.5 }, // High mobility, fast
-      square:       { maxSpeed: 8,  wallBounce: 1.0, collisionRestitution: 2.5 }, // Tank, slow
-      oval:         { maxSpeed: 14, wallBounce: 1.2, collisionRestitution: 3.2 }, // Very fast
-      hexagon:      { maxSpeed: 9,  wallBounce: 1.1, collisionRestitution: 2.8 }, // Precision, moderate
-      spiral:       { maxSpeed: 11, wallBounce: 1.2, collisionRestitution: 3.3 }, // Chaotic, bouncy
-      rhombus:      { maxSpeed: 10, wallBounce: 1.1, collisionRestitution: 3.0 },
-      star:         { maxSpeed: 13, wallBounce: 1.3, collisionRestitution: 3.8 }, // Aggressive, fast
-      heart:        { maxSpeed: 10, wallBounce: 1.1, collisionRestitution: 2.8 },
-      diamond:      { maxSpeed: 9,  wallBounce: 1.0, collisionRestitution: 2.6 }, // Precision, controlled
-      crescent:     { maxSpeed: 11, wallBounce: 1.1, collisionRestitution: 3.0 },
-      dodecahedron: { maxSpeed: 8,  wallBounce: 1.0, collisionRestitution: 2.4 }  // Disciplined, slow
+      circle:       { maxSpeed: 12, wallBounce: 0.8, collisionRestitution: 1.8 },
+      triangle:     { maxSpeed: 15, wallBounce: 0.9, collisionRestitution: 2.0 }, // High mobility, fast
+      square:       { maxSpeed: 8,  wallBounce: 0.7, collisionRestitution: 1.5 }, // Tank, slow
+      oval:         { maxSpeed: 14, wallBounce: 0.8, collisionRestitution: 1.9 }, // Very fast
+      hexagon:      { maxSpeed: 9,  wallBounce: 0.7, collisionRestitution: 1.6 }, // Precision, moderate
+      spiral:       { maxSpeed: 11, wallBounce: 0.8, collisionRestitution: 1.9 }, // Chaotic, bouncy
+      rhombus:      { maxSpeed: 10, wallBounce: 0.7, collisionRestitution: 1.8 },
+      star:         { maxSpeed: 13, wallBounce: 0.9, collisionRestitution: 2.0 }, // Aggressive, fast
+      heart:        { maxSpeed: 10, wallBounce: 0.7, collisionRestitution: 1.6 },
+      diamond:      { maxSpeed: 9,  wallBounce: 0.7, collisionRestitution: 1.5 }, // Precision, controlled
+      crescent:     { maxSpeed: 11, wallBounce: 0.7, collisionRestitution: 1.8 },
+      dodecahedron: { maxSpeed: 8,  wallBounce: 0.6, collisionRestitution: 1.4 }  // Disciplined, slow
     };
-    const physics = shapePhysics[this.shapeType] || { maxSpeed: 10, wallBounce: 1.2, collisionRestitution: 3.0 };
+    const physics = shapePhysics[this.shapeType] || { maxSpeed: 10, wallBounce: 0.8, collisionRestitution: 1.8 };
     this.maxSpeed = physics.maxSpeed;
     this.wallBounceMultiplier = physics.wallBounce;
     this.collisionRestitution = physics.collisionRestitution;
@@ -1646,7 +1646,7 @@ function handleCollisions(fighters) {
           f2.vy += impulse * m1 * ny * restitution;
           
           // Add guaranteed minimum knockback to ensure wall hits
-          const minKnockback = 40;
+          const minKnockback = 15;
           f1.vx -= nx * minKnockback;
           f1.vy -= ny * minKnockback;
           f2.vx += nx * minKnockback;
