@@ -82,28 +82,43 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 ---
 
-## Square (Gamma) - "The Tank"
+## Square (Gamma) - "The Juggernaut"
+
+**Theme:** You don't move me—I move YOU
 
 **Personality:** High precision, low mobility
 
+### Weapon: Impact Core (Heavy Hammer Field)
+- **Visual:** No traditional weapon—has a floating mass block/aura around the square
+- **Normal State:** Pulsing purple aura with dense inner core
+- **During Slam:** Visible shockwave plates appear when moving fast
+- **During Ultimate:** Looks like a moving fortress with corner fortifications
+- **Feel:** The body is the weapon
+
 ### Skill 1: Shield
-- **Cooldown:** 2.0 seconds (120 frames)
-- **Effect:** Downward velocity boost of 10
-- **Bonus:** Grants `massMultiplier` of 2x for 0.5 seconds (30 frames)
-- **Best Use:** For heavy downward slams
+- **Cooldown:** 2.5 seconds (150 frames)
+- **Effect:** Grants `damageReduction` of 50% for 2 seconds (120 frames)
+- **Mechanic:** Reduces incoming damage by half while active
+- **Visual:** Blue protective aura around the square
+- **Best Use:** When expecting to take damage from collisions
+- **Identity:** "You can't hurt me"
 
 ### Skill 2: Slam
 - **Cooldown:** 2.0 seconds (120 frames)
-- **Effect:** Slows to 30% of current speed
-- **Bonus:** Grants `massMultiplier` of 3x for 1 second (60 frames)
-- **Best Use:** To become a heavy, immovable object
+- **Effect:** Grants `slamShockwave` for 1 second (60 frames)
+- **Mechanic:** When speed drops below 2, creates shockwave that knocks back nearby fighters (150px range)
+- **Visual:** Charging indicator when moving fast, shockwave particles on stop
+- **Best Use:** Build up speed then stop to create area knockback
+- **Identity:** "I control the space around me"
 
 ### Ultimate: Quake
 - **Charge Required:** 10 hits
 - **Cooldown:** 3.0 seconds (180 frames)
-- **Effect:** Grants `massMultiplier` of 5x for 3 seconds
-- **Bonus:** Slows to 50% speed
-- **Best Use:** Maximum mass for devastating collisions
+- **Effect:** Grants `quakePulse` for 3 seconds (180 frames)
+- **Mechanic:** Area knockback pulse every 0.5 seconds (30 frames) in 200px range
+- **Visual:** Fortress aura with corner fortifications, pulsing ring effects
+- **Best Use:** Zone control and keeping enemies away
+- **Identity:** "This is my fortress"
 
 ---
 

@@ -488,6 +488,28 @@ class Fighter {
           this.trail.push({ x: this.x, y: this.y, alpha: 0.7 });
         }
         if (this.trail.length > 20) this.trail.shift();
+      } else if (effect.type === 'damageReduction') {
+        // Damage reduction: reduces incoming damage (handled in collision)
+      } else if (effect.type === 'slamShockwave') {
+        // Slam shockwave: create shockwave when speed drops significantly
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed < 2 && !effect.shockwaveTriggered) {
+          effect.shockwaveTriggered = true;
+          // Create shockwave particles
+          spawnParticles(this.x, this.y, this.color, 20, {
+            minSpeed: 4, maxSpeed: 8, shape: 'ring', glow: true,
+            minDecay: 0.03, decayRange: 0.02
+          });
+        }
+      } else if (effect.type === 'quakePulse') {
+        // Quake pulse: area knockback every 0.5s (30 frames)
+        if (effect.duration % 30 === 0) {
+          // Create pulse visual
+          spawnParticles(this.x, this.y, this.color, 16, {
+            minSpeed: 3, maxSpeed: 6, shape: 'ring', glow: true,
+            minDecay: 0.04, decayRange: 0.02
+          });
+        }
       } else if (effect.type === 'velocityUncap') {
         // Velocity uncapped: temporarily ignore speed limits
         // This effect doesn't modify velocity directly, it just allows higher speeds
@@ -899,7 +921,8 @@ class Fighter {
       }
       this.cooldowns.skill1 = 150;
     } else if (this.shapeType === 'square') {
-      this.vy += 10; this.addEffect('massMultiplier', 2, 30); this.cooldowns.skill1 = 120;
+      this.addEffect('damageReduction', 0.5, 120); // 50% damage reduction for 2 seconds
+      this.cooldowns.skill1 = 150;
     } else if (this.shapeType === 'oval') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) { this.vx *= 2.0; this.vy *= 2.0; this.addEffect('speedBoost', 15, 45); }
@@ -989,7 +1012,8 @@ class Fighter {
       this.addEffect('afterimageTrail', 1, 90); // Afterimage trail for 1.5 seconds
       this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'square') {
-      this.vx *= 0.3; this.vy *= 0.3; this.addEffect('massMultiplier', 3, 60); this.cooldowns.skill2 = 120;
+      this.addEffect('slamShockwave', 1, 60); // Slam effect for 1 second
+      this.cooldowns.skill2 = 120;
     } else if (this.shapeType === 'oval') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) {
@@ -1043,7 +1067,7 @@ class Fighter {
       // Spike: removes velocity cap temporarily (all-in burst, high risk)
       this.addEffect('velocityUncap', 1, 120); // Remove velocity cap for 2 seconds
     } else if (this.shapeType === 'square') {
-      this.addEffect('massMultiplier', 5, 180); this.vx *= 0.5; this.vy *= 0.5;
+      this.addEffect('quakePulse', 1, 180); // Area knockback pulse for 3 seconds
     } else if (this.shapeType === 'oval') {
       this.addEffect('phaseShift', 1, 120); this.vx *= 1.5; this.vy *= 1.5;
     } else if (this.shapeType === 'hexagon') {
@@ -1320,6 +1344,42 @@ class Fighter {
           ctx.fill();
         }
         ctx.restore();
+      } else if (effect.type === 'damageReduction') {
+        // Square Shield: blue protective aura
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = '#3399ff';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#3399ff';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius + 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (effect.type === 'slamShockwave') {
+        // Square Slam: charging indicator
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed >= 2) {
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = '#8866ff';
+          ctx.shadowColor = '#8866ff';
+          ctx.shadowBlur = 12;
+          const pulseSize = this.radius + 5 + Math.sin(Date.now() / 50) * 3;
+          ctx.fillRect(this.x - pulseSize, this.y - pulseSize, pulseSize * 2, pulseSize * 2);
+          ctx.restore();
+        }
+      } else if (effect.type === 'quakePulse') {
+        // Square Quake: fortress aura
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#aa66ff';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#aa66ff';
+        ctx.shadowBlur = 20;
+        const pulseSize = this.radius + 15 + Math.sin(Date.now() / 80) * 5;
+        ctx.strokeRect(this.x - pulseSize, this.y - pulseSize, pulseSize * 2, pulseSize * 2);
+        ctx.restore();
       }
     }
 
@@ -1383,17 +1443,76 @@ class Fighter {
             // Normal orbiting blades - green orbs
             const bladeX = this.x + Math.cos(bladeAngle) * ringRadius;
             const bladeY = this.y + Math.sin(bladeAngle) * ringRadius;
-            
             ctx.fillStyle = '#00ff00';
             ctx.shadowColor = '#00aa00';
             ctx.shadowBlur = 15;
-            ctx.globalAlpha = 1;
+            ctx.globalAlpha = 0.9;
             ctx.beginPath();
-            ctx.arc(bladeX, bladeY, 8, 0, Math.PI * 2);
+            ctx.arc(bladeX, bladeY, 6, 0, Math.PI * 2);
             ctx.fill();
           }
         }
       }
+      ctx.restore();
+    }
+
+    // Square Impact Core weapon (drawn on top)
+    if (this.shapeType === 'square') {
+      ctx.save();
+      
+      // Floating mass block/aura around the square
+      const auraSize = this.radius + 20;
+      const pulse = 0.3 + Math.sin(Date.now() / 100) * 0.15;
+      
+      // Outer aura glow
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#8866ff';
+      ctx.shadowColor = '#aa66ff';
+      ctx.shadowBlur = 25;
+      ctx.fillRect(this.x - auraSize, this.y - auraSize, auraSize * 2, auraSize * 2);
+      
+      // Inner dense core
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = '#5533aa';
+      ctx.shadowBlur = 15;
+      const coreSize = this.radius + 8;
+      ctx.fillRect(this.x - coreSize, this.y - coreSize, coreSize * 2, coreSize * 2);
+      
+      // Shockwave plates for Slam effect
+      const slamEffect = this.activeEffects.find(e => e.type === 'slamShockwave');
+      if (slamEffect && !slamEffect.shockwaveTriggered) {
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed >= 2) {
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.shadowColor = '#ffffff';
+          ctx.shadowBlur = 20;
+          const plateSize = this.radius + 30 + Math.sin(Date.now() / 30) * 5;
+          ctx.strokeRect(this.x - plateSize, this.y - plateSize, plateSize * 2, plateSize * 2);
+        }
+      }
+      
+      // Fortress mode for Quake ultimate
+      const quakeEffect = this.activeEffects.find(e => e.type === 'quakePulse');
+      if (quakeEffect) {
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = '#ff88ff';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#ff88ff';
+        ctx.shadowBlur = 30;
+        const fortressSize = this.radius + 40 + Math.sin(Date.now() / 60) * 8;
+        ctx.strokeRect(this.x - fortressSize, this.y - fortressSize, fortressSize * 2, fortressSize * 2);
+        
+        // Corner fortifications
+        const cornerSize = 15;
+        ctx.fillStyle = '#aa66ff';
+        ctx.fillRect(this.x - fortressSize - cornerSize, this.y - fortressSize - cornerSize, cornerSize * 2, cornerSize * 2);
+        ctx.fillRect(this.x + fortressSize - cornerSize, this.y - fortressSize - cornerSize, cornerSize * 2, cornerSize * 2);
+        ctx.fillRect(this.x - fortressSize - cornerSize, this.y + fortressSize - cornerSize, cornerSize * 2, cornerSize * 2);
+        ctx.fillRect(this.x + fortressSize - cornerSize, this.y + fortressSize - cornerSize, cornerSize * 2, cornerSize * 2);
+      }
+      
       ctx.restore();
     }
 
@@ -1582,17 +1701,45 @@ function handleCollisions(fighters) {
         const dx = f1.x - f2.x; const dy = f1.y - f2.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0 && dist < gravityTrapEffect.value) {
-          // Pull toward center
-          const pullForce = 0.5 * (1 - dist / gravityTrapEffect.value);
+          const pullForce = 0.4 * (1 - dist / gravityTrapEffect.value);
           f2.vx += (dx / dist) * pullForce; f2.vy += (dy / dist) * pullForce;
           // Apply orbital force (perpendicular to pull direction)
-          const speed = Math.sqrt(f2.vx * f2.vx + f2.vy * f2.vy);
-          if (speed > 0) {
-            const angle = Math.atan2(f2.vy, f2.vx);
-            const perpAngle = angle + Math.PI / 2;
-            f2.vx += Math.cos(perpAngle) * 0.3;
-            f2.vy += Math.sin(perpAngle) * 0.3;
-          }
+          const angle = Math.atan2(dy, dx);
+          const perpAngle = angle + Math.PI / 2;
+          f2.vx += Math.cos(perpAngle) * 0.8;
+          f2.vy += Math.sin(perpAngle) * 0.8;
+        }
+      }
+    }
+    // Slam Shockwave: knockback when speed drops
+    const slamEffect = f1.activeEffects.find(e => e.type === 'slamShockwave');
+    if (slamEffect && slamEffect.shockwaveTriggered) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - f1.x; const dy = f2.y - f1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < 150) {
+          const knockback = (150 - dist) / 10;
+          f2.vx += (dx / dist) * knockback;
+          f2.vy += (dy / dist) * knockback;
+        }
+      }
+    }
+    // Quake Pulse: area knockback every 0.5s
+    const quakeEffect = f1.activeEffects.find(e => e.type === 'quakePulse');
+    if (quakeEffect && quakeEffect.duration % 30 === 0) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - f1.x; const dy = f2.y - f1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < 200) {
+          const knockback = (200 - dist) / 15;
+          f2.vx += (dx / dist) * knockback;
+          f2.vy += (dy / dist) * knockback;
         }
       }
     }
@@ -1683,7 +1830,10 @@ function handleCollisions(fighters) {
             if (luckRoll < 0.5) {
               // f2 is the "attacker" (pushes f1)
               if (f2CanDamage) {
-                f1.hp -= baseDamage;
+                // Apply damage reduction if f1 has the effect
+                const drEffect = f1.activeEffects.find(e => e.type === 'damageReduction');
+                const reducedDamage = drEffect ? Math.floor(baseDamage * (1 - drEffect.value)) : baseDamage;
+                f1.hp -= reducedDamage;
                 f1.hitFlash = 15;
                 f1.lastAttacker = f2;
                 f2.ultimateCharge = Math.min(f2.ultimateCharge + chargeAmount, 10);
@@ -1703,7 +1853,10 @@ function handleCollisions(fighters) {
             } else {
               // f1 is the "attacker"
               if (f1CanDamage) {
-                f2.hp -= baseDamage;
+                // Apply damage reduction if f2 has the effect
+                const drEffect = f2.activeEffects.find(e => e.type === 'damageReduction');
+                const reducedDamage = drEffect ? Math.floor(baseDamage * (1 - drEffect.value)) : baseDamage;
+                f2.hp -= reducedDamage;
                 f2.hitFlash = 15;
                 f2.lastAttacker = f1;
                 f1.ultimateCharge = Math.min(f1.ultimateCharge + chargeAmount, 10);
