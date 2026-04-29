@@ -1254,44 +1254,6 @@ class Fighter {
     const bodyColor = this.hitFlash > 0 ? '#fff' : this.color;
     this.drawShape(this.x, this.y, this.radius, bodyColor, 1);
 
-    // Circle Orbit Blades weapon
-    if (this.shapeType === 'circle') {
-      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      const momentumBoostEffect = this.activeEffects.find(e => e.type === 'momentumBoost');
-      const isDashing = momentumBoostEffect !== undefined;
-      
-      ctx.save();
-      ctx.shadowColor = '#00ccff';
-      ctx.shadowBlur = 15;
-      
-      // Two spinning rings
-      for (let ring = 0; ring < 2; ring++) {
-        const ringRadius = this.radius + 15 + (ring * 12);
-        const rotation = Date.now() / (200 + ring * 100) + (ring * Math.PI);
-        
-        if (isDashing) {
-          // Stretch into arcs during Dash (like slicing wind)
-          const dashAngle = Math.atan2(this.vy, this.vx);
-          const arcLength = Math.PI * 0.8;
-          ctx.strokeStyle = ring === 0 ? '#00ccff' : '#00ffff';
-          ctx.lineWidth = 3;
-          ctx.globalAlpha = 0.8;
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, ringRadius, dashAngle - arcLength/2, dashAngle + arcLength/2);
-          ctx.stroke();
-        } else {
-          // Normal spinning rings
-          ctx.strokeStyle = ring === 0 ? '#00ccff' : '#00ffff';
-          ctx.lineWidth = 2;
-          ctx.globalAlpha = 0.6;
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, ringRadius, rotation, rotation + Math.PI * 1.5);
-          ctx.stroke();
-        }
-      }
-      ctx.restore();
-    }
-
     // Outline
     this.drawShapeOutline(this.x, this.y, this.radius, '#fff', 2);
 
@@ -1301,6 +1263,58 @@ class Fighter {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(Math.ceil(this.hp), this.x, this.y);
+
+    // Circle Orbit Blades weapon (drawn on top)
+    if (this.shapeType === 'circle') {
+      // Debug: confirm circle detection
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('CIRCLE', this.x, this.y - this.radius - 20);
+      
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      const momentumBoostEffect = this.activeEffects.find(e => e.type === 'momentumBoost');
+      const isDashing = momentumBoostEffect !== undefined;
+      
+      ctx.save();
+      
+      // Two spinning rings - bright yellow for maximum visibility
+      for (let ring = 0; ring < 2; ring++) {
+        const ringRadius = this.radius + 30 + (ring * 20);
+        const rotation = Date.now() / (80 + ring * 40) + (ring * Math.PI);
+        
+        if (isDashing) {
+          // Stretch into arcs during Dash (like slicing wind)
+          const dashAngle = Math.atan2(this.vy, this.vx);
+          const arcLength = Math.PI * 1.3;
+          ctx.strokeStyle = '#ffff00';
+          ctx.lineWidth = 10;
+          ctx.shadowColor = '#ff0000';
+          ctx.shadowBlur = 50;
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, ringRadius, dashAngle - arcLength/2, dashAngle + arcLength/2);
+          ctx.stroke();
+        } else {
+          // Normal spinning rings - bright yellow
+          ctx.strokeStyle = '#ffff00';
+          ctx.lineWidth = 10;
+          ctx.shadowColor = '#ff0000';
+          ctx.shadowBlur = 40;
+          ctx.globalAlpha = 1;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, ringRadius, rotation, rotation + Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    } else {
+      // Debug: show shapeType for non-circle fighters
+      ctx.fillStyle = '#ff0000';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.shapeType, this.x, this.y - this.radius - 15);
+    }
   }
 
   drawShape(x, y, size, color, alpha) {
