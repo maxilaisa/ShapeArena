@@ -928,9 +928,9 @@ class Fighter {
               });
           }
         } else if (skillKey === 'skill2') {
-          // Moon phase: slow drifting blue orbs
+          // Moon phase: blue orbs
           spawnParticles(x, y, '#4488ff', 20, {
-            minSpeed: 1, maxSpeed: 4, shape: 'circle', glow: true,
+            minSpeed: 4, maxSpeed: 8, shape: 'circle', glow: true,
             minDecay: 0.015, decayRange: 0.02
           });
         } else {
