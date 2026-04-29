@@ -195,6 +195,9 @@ class Fighter {
     this.hitFlash = 0;
     this.abilityFlash = 0;
 
+    // Shape-specific physics properties
+    this.initShapePhysics();
+
     this.initPersonality();
   }
 
@@ -221,6 +224,28 @@ class Fighter {
     }
   }
 
+  initShapePhysics() {
+    // Shape-specific physics: maxSpeed, wallBounceMultiplier, collisionRestitution
+    const shapePhysics = {
+      circle:       { maxSpeed: 12, wallBounce: 1.5, collisionRestitution: 1.5 },
+      triangle:     { maxSpeed: 15, wallBounce: 1.8, collisionRestitution: 1.8 }, // High mobility, fast
+      square:       { maxSpeed: 8,  wallBounce: 1.2, collisionRestitution: 1.2 }, // Tank, slow
+      oval:         { maxSpeed: 14, wallBounce: 1.6, collisionRestitution: 1.6 }, // Very fast
+      hexagon:      { maxSpeed: 9,  wallBounce: 1.3, collisionRestitution: 1.3 }, // Precision, moderate
+      spiral:       { maxSpeed: 11, wallBounce: 1.7, collisionRestitution: 1.7 }, // Chaotic, bouncy
+      rhombus:      { maxSpeed: 10, wallBounce: 1.4, collisionRestitution: 1.4 },
+      star:         { maxSpeed: 13, wallBounce: 1.9, collisionRestitution: 1.9 }, // Aggressive, fast
+      heart:        { maxSpeed: 10, wallBounce: 1.3, collisionRestitution: 1.3 },
+      diamond:      { maxSpeed: 9,  wallBounce: 1.2, collisionRestitution: 1.2 }, // Precision, controlled
+      crescent:     { maxSpeed: 11, wallBounce: 1.5, collisionRestitution: 1.5 },
+      dodecahedron: { maxSpeed: 8,  wallBounce: 1.1, collisionRestitution: 1.1 }  // Disciplined, slow
+    };
+    const physics = shapePhysics[this.shapeType] || { maxSpeed: 10, wallBounce: 1.5, collisionRestitution: 1.5 };
+    this.maxSpeed = physics.maxSpeed;
+    this.wallBounceMultiplier = physics.wallBounce;
+    this.collisionRestitution = physics.collisionRestitution;
+  }
+
   update(fighters) {
     this.updateActiveEffects();
     if (this.cooldowns.skill1 > 0) this.cooldowns.skill1--;
@@ -231,6 +256,17 @@ class Fighter {
 
     this.vx *= FRICTION;
     this.vy *= FRICTION;
+
+    // Clamp speed to shape-specific maxSpeed (unless velocityUncap is active)
+    const uncapEffect = this.activeEffects.find(e => e.type === 'velocityUncap');
+    if (!uncapEffect) {
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > this.maxSpeed) {
+        const scale = this.maxSpeed / speed;
+        this.vx *= scale;
+        this.vy *= scale;
+      }
+    }
 
     const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
     if (speed > 3 && isFinite(this.x) && isFinite(this.y)) {
@@ -351,7 +387,7 @@ class Fighter {
 
     // Wall collision — clears needsWallBounce (must be before position clamping)
     const ricochetEffect = this.activeEffects.find(e => e.type === 'ricochet');
-    const bounceMultiplier = ricochetEffect ? 2.0 : 1.8;
+    const bounceMultiplier = ricochetEffect ? this.wallBounceMultiplier * 1.3 : this.wallBounceMultiplier;
     let hitWall = false;
 
     if (this.x - this.radius < arenaLeft) {
@@ -1594,7 +1630,8 @@ function handleCollisions(fighters) {
 
         if (dvn > 0) {
           const m1 = f1.mass; const m2 = f2.mass;
-          const restitution = 1.8; // Moderate knockback for wall hits without excessive bouncing
+          // Use average of both shapes' collision restitution
+          const restitution = (f1.collisionRestitution + f2.collisionRestitution) / 2;
           const impulse = (2 * dvn) / (m1 + m2);
           f1.vx -= impulse * m2 * nx * restitution;
           f1.vy -= impulse * m2 * ny * restitution;
