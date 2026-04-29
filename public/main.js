@@ -351,7 +351,7 @@ class Fighter {
 
     // Wall collision — clears needsWallBounce (must be before position clamping)
     const ricochetEffect = this.activeEffects.find(e => e.type === 'ricochet');
-    const bounceMultiplier = ricochetEffect ? 3.0 : 2.5;
+    const bounceMultiplier = ricochetEffect ? 2.0 : 1.8;
     let hitWall = false;
 
     if (this.x - this.radius < arenaLeft) {
@@ -1594,7 +1594,7 @@ function handleCollisions(fighters) {
 
         if (dvn > 0) {
           const m1 = f1.mass; const m2 = f2.mass;
-          const restitution = 2.5; // Increased for stronger knockback to guarantee wall hits
+          const restitution = 1.8; // Moderate knockback for wall hits without excessive bouncing
           const impulse = (2 * dvn) / (m1 + m2);
           f1.vx -= impulse * m2 * nx * restitution;
           f1.vy -= impulse * m2 * ny * restitution;
