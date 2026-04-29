@@ -225,6 +225,7 @@ class Fighter {
     this.shapeType = shapeType;
     this.hp = 100;
     this.maxHp = 100;
+    this.shield = 0; // Temporary shield HP
     this.target = null;
     this.ultimateCharge = 0;
     this.lastAttacker = null;
@@ -308,10 +309,12 @@ class Fighter {
 
     // Clamp speed to shape-specific maxSpeed (unless velocityUncap is active or during knockback cooldown)
     const uncapEffect = this.activeEffects.find(e => e.type === 'velocityUncap');
+    const slowEffect = this.activeEffects.find(e => e.type === 'slow');
+    const effectiveMaxSpeed = slowEffect ? this.maxSpeed * (1 - slowEffect.value) : this.maxSpeed;
     if (!uncapEffect && this.collisionKnockbackCooldown === 0) {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      if (speed > this.maxSpeed) {
-        const scale = this.maxSpeed / speed;
+      if (speed > effectiveMaxSpeed) {
+        const scale = effectiveMaxSpeed / speed;
         this.vx *= scale;
         this.vy *= scale;
       }
@@ -576,6 +579,18 @@ class Fighter {
             });
           }
         }
+      } else if (effect.type === 'slow') {
+        // Slow: reduces movement speed
+        // This effect doesn't modify velocity directly
+        // The actual slowing is handled in the velocity cap checks
+      } else if (effect.type === 'shieldConversion') {
+        // Shield conversion: converts damage taken into temporary shield
+        // This effect doesn't modify velocity directly
+        // The actual conversion is handled in the collision damage logic
+      } else if (effect.type === 'knockbackResistance') {
+        // Knockback resistance: reduces knockback force
+        // This effect doesn't modify velocity directly
+        // The actual resistance is handled in the collision knockback logic
       }
       return effect.duration > 0;
     });
@@ -997,11 +1012,17 @@ class Fighter {
       }
       this.cooldowns.skill1 = 120;
     } else if (this.shapeType === 'hexagon') {
+      // Orbit: precision strike that applies slow to enemy
       if (this.target) {
         const dx = this.target.x - this.x;
         const dy = this.target.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 0) { this.vx += (dx / dist) * 8; this.vy += (dy / dist) * 8; this.addEffect('predictionBoost', 1, 60); }
+        if (dist > 0) {
+          this.vx += (dx / dist) * 8; this.vy += (dy / dist) * 8;
+          this.addEffect('predictionBoost', 1, 60);
+          // Apply slow to target
+          this.target.addEffect('slow', 0.5, 90); // 50% speed reduction for 1.5 seconds
+        }
       }
       this.cooldowns.skill1 = 130;
     } else if (this.shapeType === 'spiral') {
@@ -1097,7 +1118,9 @@ class Fighter {
       }
       this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'hexagon') {
-      this.addEffect('massMultiplier', 2.5, 90); this.cooldowns.skill2 = 110;
+      // Hex: converts damage taken into temporary shield
+      this.addEffect('shieldConversion', 0.5, 120); // 50% damage conversion to shield for 2 seconds
+      this.cooldowns.skill2 = 110;
     } else if (this.shapeType === 'spiral') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) {
@@ -1150,7 +1173,9 @@ class Fighter {
       this.addEffect('ghostTrail', 1, 180); // Ghost trail for 3 seconds
       this.vx *= 1.5; this.vy *= 1.5;
     } else if (this.shapeType === 'hexagon') {
-      this.addEffect('massMultiplier', 8, 150); this.vx *= 0.3; this.vy *= 0.3;
+      // Burst: emits protective field reducing knockback
+      this.addEffect('knockbackResistance', 0.7, 180); // 70% knockback reduction for 3 seconds
+      this.vx *= 0.3; this.vy *= 0.3;
     } else if (this.shapeType === 'spiral') {
       this.addEffect('chaosSpin', 4, 180); this.addEffect('speedBoost', 25, 180);
     } else if (this.shapeType === 'rhombus') {
@@ -1483,6 +1508,43 @@ class Fighter {
         const pulseSize = this.radius + 15 + Math.sin(Date.now() / 80) * 5;
         ctx.strokeRect(this.x - pulseSize, this.y - pulseSize, pulseSize * 2, pulseSize * 2);
         ctx.restore();
+      } else if (effect.type === 'slow') {
+        // Hexagon Orbit slow: cyan frost effect
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = '#00ccff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#00ccff';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (effect.type === 'shieldConversion') {
+        // Hexagon Hex: green shield conversion aura
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (effect.type === 'knockbackResistance') {
+        // Hexagon Burst: protective field
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = '#00ffaa';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#00ffaa';
+        ctx.shadowBlur = 25;
+        const pulseSize = this.radius + 12 + Math.sin(Date.now() / 60) * 4;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, pulseSize, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       }
     }
 
@@ -1715,6 +1777,81 @@ class Fighter {
           ctx.stroke();
         }
       }
+      
+      ctx.restore();
+    }
+
+    // Hexagon Hex Drones weapon (drawn on top)
+    if (this.shapeType === 'hexagon') {
+      ctx.save();
+      
+      const predictionBoostEffect = this.activeEffects.find(e => e.type === 'predictionBoost');
+      const isPredictionActive = predictionBoostEffect !== undefined;
+      
+      const droneCount = 6;
+      const orbitRadius = this.radius * 1.5;
+      const droneSize = 8;
+      const glowIntensity = isPredictionActive ? 30 : 15;
+      const glowColor = isPredictionActive ? '#00ffaa' : '#00cc88';
+      
+      // Draw orbiting hex drones
+      for (let i = 0; i < droneCount; i++) {
+        const angle = (Date.now() / 500) + (Math.PI * 2 / droneCount) * i;
+        const droneX = this.x + Math.cos(angle) * orbitRadius;
+        const droneY = this.y + Math.sin(angle) * orbitRadius;
+        
+        // Draw hexagonal drone
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = glowColor;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = glowIntensity;
+        
+        ctx.beginPath();
+        for (let j = 0; j < 6; j++) {
+          const a = (Math.PI / 3) * j - Math.PI / 6;
+          const px = droneX + droneSize * Math.cos(a);
+          const py = droneY + droneSize * Math.sin(a);
+          if (j === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        
+        // Inner glow for each drone
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(droneX, droneY, droneSize * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Draw connecting lines when predictionBoost is active
+      if (isPredictionActive) {
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#00ffaa';
+        ctx.lineWidth = 1;
+        ctx.shadowBlur = 10;
+        
+        for (let i = 0; i < droneCount; i++) {
+          const angle = (Date.now() / 500) + (Math.PI * 2 / droneCount) * i;
+          const droneX = this.x + Math.cos(angle) * orbitRadius;
+          const droneY = this.y + Math.sin(angle) * orbitRadius;
+          
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y);
+          ctx.lineTo(droneX, droneY);
+          ctx.stroke();
+        }
+      }
+      
+      // Central hub
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = '#00aa88';
+      ctx.shadowColor = '#00cc88';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
+      ctx.fill();
       
       ctx.restore();
     }
@@ -2012,10 +2149,17 @@ function handleCollisions(fighters) {
           
           // Add guaranteed minimum knockback to ensure wall hits
           const minKnockback = 15;
-          f1.vx -= nx * minKnockback;
-          f1.vy -= ny * minKnockback;
-          f2.vx += nx * minKnockback;
-          f2.vy += ny * minKnockback;
+          
+          // Apply knockback resistance if fighters have the effect
+          const krEffect1 = f1.activeEffects.find(e => e.type === 'knockbackResistance');
+          const krEffect2 = f2.activeEffects.find(e => e.type === 'knockbackResistance');
+          const knockbackMultiplier1 = krEffect1 ? (1 - krEffect1.value) : 1;
+          const knockbackMultiplier2 = krEffect2 ? (1 - krEffect2.value) : 1;
+          
+          f1.vx -= nx * minKnockback * knockbackMultiplier1;
+          f1.vy -= ny * minKnockback * knockbackMultiplier1;
+          f2.vx += nx * minKnockback * knockbackMultiplier2;
+          f2.vy += ny * minKnockback * knockbackMultiplier2;
           
           // Set collision knockback cooldown to prevent AI movement
           f1.collisionKnockbackCooldown = 30; // 0.5 seconds
@@ -2050,8 +2194,26 @@ function handleCollisions(fighters) {
               if (f2CanDamage) {
                 // Apply damage reduction if f1 has the effect
                 const drEffect = f1.activeEffects.find(e => e.type === 'damageReduction');
-                const reducedDamage = drEffect ? Math.floor(baseDamage * (1 - drEffect.value)) : baseDamage;
-                f1.hp -= reducedDamage;
+                let reducedDamage = drEffect ? Math.floor(baseDamage * (1 - drEffect.value)) : baseDamage;
+                
+                // Apply shield conversion if f1 has the effect
+                const scEffect = f1.activeEffects.find(e => e.type === 'shieldConversion');
+                if (scEffect && reducedDamage > 0) {
+                  const shieldAbsorb = Math.floor(reducedDamage * scEffect.value);
+                  f1.shield += shieldAbsorb;
+                  reducedDamage -= shieldAbsorb;
+                }
+                
+                // Use shield first if available
+                if (f1.shield > 0 && reducedDamage > 0) {
+                  const shieldDamage = Math.min(f1.shield, reducedDamage);
+                  f1.shield -= shieldDamage;
+                  reducedDamage -= shieldDamage;
+                }
+                
+                if (reducedDamage > 0) {
+                  f1.hp -= reducedDamage;
+                }
                 f1.hitFlash = 15;
                 f1.lastAttacker = f2;
                 f2.ultimateCharge = Math.min(f2.ultimateCharge + chargeAmount, 10);
@@ -2073,8 +2235,26 @@ function handleCollisions(fighters) {
               if (f1CanDamage) {
                 // Apply damage reduction if f2 has the effect
                 const drEffect = f2.activeEffects.find(e => e.type === 'damageReduction');
-                const reducedDamage = drEffect ? Math.floor(baseDamage * (1 - drEffect.value)) : baseDamage;
-                f2.hp -= reducedDamage;
+                let reducedDamage = drEffect ? Math.floor(baseDamage * (1 - drEffect.value)) : baseDamage;
+                
+                // Apply shield conversion if f2 has the effect
+                const scEffect = f2.activeEffects.find(e => e.type === 'shieldConversion');
+                if (scEffect && reducedDamage > 0) {
+                  const shieldAbsorb = Math.floor(reducedDamage * scEffect.value);
+                  f2.shield += shieldAbsorb;
+                  reducedDamage -= shieldAbsorb;
+                }
+                
+                // Use shield first if available
+                if (f2.shield > 0 && reducedDamage > 0) {
+                  const shieldDamage = Math.min(f2.shield, reducedDamage);
+                  f2.shield -= shieldDamage;
+                  reducedDamage -= shieldDamage;
+                }
+                
+                if (reducedDamage > 0) {
+                  f2.hp -= reducedDamage;
+                }
                 f2.hitFlash = 15;
                 f2.lastAttacker = f1;
                 f1.ultimateCharge = Math.min(f1.ultimateCharge + chargeAmount, 10);

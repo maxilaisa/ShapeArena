@@ -155,27 +155,37 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 ---
 
-## Hexagon (Epsilon) - "The Defender"
+## ⬡ Hexagon (Epsilon) - "Support (Self) / Light"
 
-**Personality:** High precision, low aggression
+**Theme:** Tactical controller
+
+**Identity:** "I outplay, not overpower"
+
+**Weapon:** Hex Drones (Floating Nodes)
+- 3-6 small orbiting hex shards
+- Align and fire/strike precisely
+- Glow brighter when predictionBoost is active
 
 ### Skill 1: Orbit
 - **Cooldown:** 2.2 seconds (130 frames)
 - **Effect:** Precision strike toward target with force 8
 - **Bonus:** Grants `predictionBoost` for 1 second (60 frames)
-- **Best Use:** Accurate targeting at close range
+- **Mechanic:** Applies `slow` (50% speed reduction) to target for 1.5 seconds (90 frames)
+- **Best Use:** Accurate targeting while hindering enemy mobility
 
 ### Skill 2: Hex
 - **Cooldown:** 1.8 seconds (110 frames)
-- **Effect:** Grants `massMultiplier` of 2.5x for 1.5 seconds (90 frames)
-- **Best Use:** Defensive stance to resist being pushed
+- **Effect:** Grants `shieldConversion` for 2 seconds (120 frames)
+- **Mechanic:** Converts 50% of damage taken into temporary shield HP
+- **Best Use:** Defensive stance to absorb and convert incoming damage
 
 ### Ultimate: Burst
 - **Charge Required:** 10 hits
-- **Cooldown:** 2.5 seconds (150 frames)
-- **Effect:** Grants `massMultiplier` of 8x for 2.5 seconds
+- **Cooldown:** 3.0 seconds (180 frames)
+- **Effect:** Grants `knockbackResistance` for 3 seconds (180 frames)
+- **Mechanic:** Reduces knockback force by 70%
 - **Bonus:** Slows to 30% speed
-- **Best Use:** Near-immovable defensive position
+- **Best Use:** Near-immovable defensive position against aggressive fighters
 
 ---
 
