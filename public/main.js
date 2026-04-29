@@ -233,9 +233,11 @@ class Fighter {
     this.vy *= FRICTION;
 
     const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-    if (speed > 3) {
+    if (speed > 3 && isFinite(this.x) && isFinite(this.y)) {
       this.trail.push({ x: this.x, y: this.y, alpha: 0.5 });
     }
+    // Clean up invalid trail entries
+    this.trail = this.trail.filter(t => isFinite(t.x) && isFinite(t.y));
     if (this.trail.length > 10) this.trail.shift();
     if (this.hitFlash > 0) this.hitFlash--;
 
@@ -339,6 +341,18 @@ class Fighter {
     this.x += this.vx;
     this.y += this.vy;
 
+    // Clamp position to arena bounds to prevent teleportation
+    this.x = Math.max(arenaLeft + this.radius, Math.min(arenaRight - this.radius, this.x));
+    this.y = Math.max(arenaTop + this.radius, Math.min(arenaBottom - this.radius, this.y));
+
+    // Check for NaN/Infinity values and reset if found
+    if (!isFinite(this.x) || !isFinite(this.y) || !isFinite(this.vx) || !isFinite(this.vy)) {
+      this.x = (arenaLeft + arenaRight) / 2;
+      this.y = (arenaTop + arenaBottom) / 2;
+      this.vx = (Math.random() - 0.5) * 4;
+      this.vy = (Math.random() - 0.5) * 4;
+    }
+
     // Wall collision — clears needsWallBounce
     const ricochetEffect = this.activeEffects.find(e => e.type === 'ricochet');
     const bounceMultiplier = ricochetEffect ? 2.0 : 1.2;
@@ -347,25 +361,25 @@ class Fighter {
     if (this.x - this.radius < arenaLeft) {
       this.x = arenaLeft + this.radius;
       this.vx *= -bounceMultiplier;
-      if (Math.abs(this.vx) < MIN_SPEED) this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
+      if (!isFinite(this.vx) || Math.abs(this.vx) < MIN_SPEED) this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
       hitWall = true;
     }
     if (this.x + this.radius > arenaRight) {
       this.x = arenaRight - this.radius;
       this.vx *= -bounceMultiplier;
-      if (Math.abs(this.vx) < MIN_SPEED) this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
+      if (!isFinite(this.vx) || Math.abs(this.vx) < MIN_SPEED) this.vx = this.vx > 0 ? MIN_SPEED : -MIN_SPEED;
       hitWall = true;
     }
     if (this.y - this.radius < arenaTop) {
       this.y = arenaTop + this.radius;
       this.vy *= -bounceMultiplier;
-      if (Math.abs(this.vy) < MIN_SPEED) this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
+      if (!isFinite(this.vy) || Math.abs(this.vy) < MIN_SPEED) this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
       hitWall = true;
     }
     if (this.y + this.radius > arenaBottom) {
       this.y = arenaBottom - this.radius;
       this.vy *= -bounceMultiplier;
-      if (Math.abs(this.vy) < MIN_SPEED) this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
+      if (!isFinite(this.vy) || Math.abs(this.vy) < MIN_SPEED) this.vy = this.vy > 0 ? MIN_SPEED : -MIN_SPEED;
       hitWall = true;
     }
 
@@ -392,14 +406,14 @@ class Fighter {
         const uncapEffect = this.activeEffects.find(e => e.type === 'velocityUncap');
         if (!uncapEffect) {
           const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-          if (speed > effect.value) {
+          if (isFinite(speed) && speed > effect.value) {
             const scale = effect.value / speed;
             this.vx *= scale; this.vy *= scale;
           }
         }
       } else if (effect.type === 'orbitalForce') {
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (speed > 0) {
+        if (isFinite(speed) && speed > 0) {
           const angle = Math.atan2(this.vy, this.vx);
           const perpAngle = angle + Math.PI / 2;
           this.vx += Math.cos(perpAngle) * effect.value;
@@ -407,7 +421,7 @@ class Fighter {
         }
       } else if (effect.type === 'speedBoost') {
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (speed > 0) {
+        if (isFinite(speed) && speed > 0) {
           this.vx *= (1 + effect.value * 0.01);
           this.vy *= (1 + effect.value * 0.01);
         }
@@ -422,12 +436,14 @@ class Fighter {
           const angle = Math.atan2(this.vy, this.vx);
           const curveAngle = angle + effect.value;
           const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-          this.vx = Math.cos(curveAngle) * speed;
-          this.vy = Math.sin(curveAngle) * speed;
+          if (isFinite(speed)) {
+            this.vx = Math.cos(curveAngle) * speed;
+            this.vy = Math.sin(curveAngle) * speed;
+          }
         }
       } else if (effect.type === 'afterimageTrail') {
         // Afterimage trail: leave fake position copies
-        if (Math.random() < 0.3) {
+        if (Math.random() < 0.3 && isFinite(this.x) && isFinite(this.y)) {
           this.trail.push({ x: this.x, y: this.y, alpha: 0.7 });
         }
         if (this.trail.length > 20) this.trail.shift();
@@ -1269,6 +1285,8 @@ class Fighter {
     // Motion trail
     for (let i = 0; i < this.trail.length; i++) {
       const t = this.trail[i];
+      // Skip invalid trail positions
+      if (!isFinite(t.x) || !isFinite(t.y)) continue;
       const alpha = (i / this.trail.length) * 0.3;
       const size = this.radius * (i / this.trail.length);
       this.drawShape(t.x, t.y, size, this.color, alpha);
@@ -1496,11 +1514,15 @@ function handleCollisions(fighters) {
   // Attraction effects
   for (let i = 0; i < fighters.length; i++) {
     const f1 = fighters[i];
+    // Skip dead fighters
+    if (f1.hp <= 0) continue;
+    
     const attractionEffect = f1.activeEffects.find(e => e.type === 'attraction');
     if (attractionEffect) {
       for (let j = 0; j < fighters.length; j++) {
         if (i === j) continue;
         const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
         const dx = f1.x - f2.x; const dy = f1.y - f2.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0 && dist < attractionEffect.value) {
@@ -1515,6 +1537,7 @@ function handleCollisions(fighters) {
       for (let j = 0; j < fighters.length; j++) {
         if (i === j) continue;
         const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
         const dx = f1.x - f2.x; const dy = f1.y - f2.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0 && dist < gravityTrapEffect.value) {
@@ -1538,6 +1561,9 @@ function handleCollisions(fighters) {
     for (let j = i + 1; j < fighters.length; j++) {
       const f1 = fighters[i];
       const f2 = fighters[j];
+      
+      // Skip dead fighters
+      if (f1.hp <= 0 || f2.hp <= 0) continue;
 
       const f1Phase = f1.activeEffects.find(e => e.type === 'phaseShift');
       const f2Phase = f2.activeEffects.find(e => e.type === 'phaseShift');
@@ -1699,7 +1725,7 @@ function spawnFighters() {
 function recordState() {
   const state = fighters.map(f => ({
     x: f.x, y: f.y, vx: f.vx, vy: f.vy, hp: f.hp,
-    hitFlash: f.hitFlash, trail: [...f.trail]
+    hitFlash: f.hitFlash, trail: f.trail.filter(t => isFinite(t.x) && isFinite(t.y))
   }));
   replayBuffer.push(state);
   if (replayBuffer.length > REPLAY_DURATION) replayBuffer.shift();
