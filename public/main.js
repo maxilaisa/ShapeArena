@@ -262,9 +262,9 @@ class Fighter {
     // Decrement collision knockback cooldown
     if (this.collisionKnockbackCooldown > 0) this.collisionKnockbackCooldown--;
 
-    // Clamp speed to shape-specific maxSpeed (unless velocityUncap is active)
+    // Clamp speed to shape-specific maxSpeed (unless velocityUncap is active or during knockback cooldown)
     const uncapEffect = this.activeEffects.find(e => e.type === 'velocityUncap');
-    if (!uncapEffect) {
+    if (!uncapEffect && this.collisionKnockbackCooldown === 0) {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > this.maxSpeed) {
         const scale = this.maxSpeed / speed;
@@ -1646,7 +1646,7 @@ function handleCollisions(fighters) {
           f2.vy += impulse * m1 * ny * restitution;
           
           // Add guaranteed minimum knockback to ensure wall hits
-          const minKnockback = 20;
+          const minKnockback = 40;
           f1.vx -= nx * minKnockback;
           f1.vy -= ny * minKnockback;
           f2.vx += nx * minKnockback;
