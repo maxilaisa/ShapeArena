@@ -1883,10 +1883,10 @@ class Fighter {
       const predictionBoostEffect = this.activeEffects.find(e => e.type === 'predictionBoost');
       const isPredictionActive = predictionBoostEffect !== undefined;
       
-      const droneCount = 6;
+      const droneCount = 4; // Reduced from 6 to 4
       const orbitRadius = this.radius * 1.5;
       const droneSize = 8;
-      const glowIntensity = isPredictionActive ? 30 : 15;
+      const glowIntensity = isPredictionActive ? 20 : 10; // Reduced glow
       const glowColor = isPredictionActive ? '#00ffaa' : '#00cc88';
       
       // Draw orbiting hex drones
@@ -1925,7 +1925,7 @@ class Fighter {
         ctx.globalAlpha = 0.3;
         ctx.strokeStyle = '#00ffaa';
         ctx.lineWidth = 1;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 5; // Reduced glow
         
         for (let i = 0; i < droneCount; i++) {
           const angle = (Date.now() / 500) + (Math.PI * 2 / droneCount) * i;
@@ -1943,7 +1943,7 @@ class Fighter {
       ctx.globalAlpha = 0.6;
       ctx.fillStyle = '#00aa88';
       ctx.shadowColor = '#00cc88';
-      ctx.shadowBlur = 20;
+      ctx.shadowBlur = 10; // Reduced glow
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
       ctx.fill();
@@ -1959,14 +1959,14 @@ class Fighter {
       const isTornadoActive = chaosZoneEffect !== undefined;
       
       const orbRadius = this.radius * 0.8;
-      const spikeCount = 8;
+      const spikeCount = 5; // Reduced from 8 to 5
       const instability = isTornadoActive ? 0.3 : 0.15;
       
       // Draw unstable sphere with random spikes
       ctx.globalAlpha = 0.7;
       ctx.fillStyle = isTornadoActive ? '#ff4444' : '#aa44ff';
       ctx.shadowColor = isTornadoActive ? '#ff6666' : '#cc66ff';
-      ctx.shadowBlur = isTornadoActive ? 35 : 20;
+      ctx.shadowBlur = isTornadoActive ? 20 : 10; // Reduced glow
       
       // Main orb body
       ctx.beginPath();
@@ -1992,16 +1992,16 @@ class Fighter {
         ctx.stroke();
       }
       
-      // Inner swirling effect
+      // Inner swirling effect - reduced from 3 to 2 trails
       ctx.globalAlpha = 0.4;
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1;
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         const spiralOffset = (Date.now() / 200) + (i * Math.PI * 2 / 3);
         ctx.beginPath();
-        for (let j = 0; j < 20; j++) {
+        for (let j = 0; j < 15; j++) { // Reduced from 20 to 15
           const a = spiralOffset + j * 0.3;
-          const r = (j / 20) * orbRadius * 0.8;
+          const r = (j / 15) * orbRadius * 0.8;
           const px = this.x + r * Math.cos(a);
           const py = this.y + r * Math.sin(a);
           if (j === 0) ctx.moveTo(px, py);
@@ -2010,15 +2010,15 @@ class Fighter {
         ctx.stroke();
       }
       
-      // Tornado core during ultimate
+      // Tornado core during ultimate - reduced from 5 to 3 rings
       if (isTornadoActive) {
         ctx.globalAlpha = 0.3;
         ctx.strokeStyle = '#ff6666';
         ctx.lineWidth = 3;
         ctx.shadowColor = '#ff4444';
-        ctx.shadowBlur = 40;
+        ctx.shadowBlur = 20; // Reduced glow
         
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 3; i++) {
           const tornadoRadius = orbRadius + 10 + i * 8;
           ctx.beginPath();
           ctx.arc(this.x, this.y, tornadoRadius, 0, Math.PI * 2);
@@ -2039,7 +2039,7 @@ class Fighter {
       const isPulling = attractionEffect !== undefined;
       
       const chainLength = this.radius * 2.5;
-      const chainThickness = isSlamActive ? 6 : 3;
+      const chainThickness = isSlamActive ? 5 : 2; // Reduced thickness
       const chainColor = isSlamActive ? '#ff4444' : '#8844ff';
       
       // Find nearest enemy to draw chain toward
@@ -2060,14 +2060,14 @@ class Fighter {
         const dist = Math.sqrt(dx * dx + dy * dy);
         const angle = Math.atan2(dy, dx);
         
-        // Chain segments
-        const segmentCount = 8;
+        // Chain segments - reduced from 8 to 5
+        const segmentCount = 5;
         const segmentLength = Math.min(dist, chainLength) / segmentCount;
         
         ctx.globalAlpha = 0.7;
         ctx.strokeStyle = chainColor;
         ctx.shadowColor = isSlamActive ? '#ff6666' : '#aa66ff';
-        ctx.shadowBlur = isSlamActive ? 30 : 15;
+        ctx.shadowBlur = isSlamActive ? 15 : 8; // Reduced glow
         ctx.lineWidth = chainThickness;
         
         for (let i = 0; i < segmentCount; i++) {
@@ -2093,7 +2093,7 @@ class Fighter {
           ctx.globalAlpha = 0.5;
           ctx.fillStyle = chainColor;
           ctx.beginPath();
-          ctx.arc(targetX, targetY, 8, 0, Math.PI * 2);
+          ctx.arc(targetX, targetY, 6, 0, Math.PI * 2); // Reduced size
           ctx.fill();
         }
       }
@@ -2102,7 +2102,7 @@ class Fighter {
       ctx.globalAlpha = 0.6;
       ctx.fillStyle = isSlamActive ? '#ff6666' : '#9966ff';
       ctx.shadowColor = isSlamActive ? '#ff8888' : '#bb88ff';
-      ctx.shadowBlur = isSlamActive ? 35 : 20;
+      ctx.shadowBlur = isSlamActive ? 15 : 8; // Reduced glow
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius * 0.5, 0, Math.PI * 2);
       ctx.fill();
