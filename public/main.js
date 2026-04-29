@@ -194,6 +194,7 @@ class Fighter {
     this.trail = [];
     this.hitFlash = 0;
     this.abilityFlash = 0;
+    this.collisionKnockbackCooldown = 0; // Prevents AI movement after collision knockback
 
     // Shape-specific physics properties
     this.initShapePhysics();
@@ -258,6 +259,9 @@ class Fighter {
     this.vx *= FRICTION;
     this.vy *= FRICTION;
 
+    // Decrement collision knockback cooldown
+    if (this.collisionKnockbackCooldown > 0) this.collisionKnockbackCooldown--;
+
     // Clamp speed to shape-specific maxSpeed (unless velocityUncap is active)
     const uncapEffect = this.activeEffects.find(e => e.type === 'velocityUncap');
     if (!uncapEffect) {
@@ -317,7 +321,7 @@ class Fighter {
     if (this.y - this.radius < arenaTop    + wallMargin) avoidY += 1;
     if (this.y + this.radius > arenaBottom - wallMargin) avoidY -= 1;
 
-    if (this.target && this.target.hp > 0) {
+    if (this.target && this.target.hp > 0 && this.collisionKnockbackCooldown === 0) {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1647,6 +1651,10 @@ function handleCollisions(fighters) {
           f1.vy -= ny * minKnockback;
           f2.vx += nx * minKnockback;
           f2.vy += ny * minKnockback;
+          
+          // Set collision knockback cooldown to prevent AI movement
+          f1.collisionKnockbackCooldown = 30; // 0.5 seconds
+          f2.collisionKnockbackCooldown = 30;
 
           const collisionSpeed = Math.abs(dvn);
           if (collisionSpeed > 3) {
