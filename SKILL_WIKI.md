@@ -223,27 +223,37 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 ---
 
-## Rhombus (Eta) - "The Lurer"
+## 🔷 Rhombus (Eta) - "Mage / Dark"
 
-**Personality:** High greed, high revenge
+**Theme:** Gravity manipulator
+
+**Identity:** "Come to me… and regret it"
+
+**Weapon:** Gravity Chain
+- A chain or tether extending outward
+- Visibly pulls enemies in
+- Becomes thicker/heavier during ultimate
 
 ### Skill 1: Heavy
 - **Cooldown:** 2.3 seconds (140 frames)
-- **Effect:** Creates attraction field with 200px range
+- **Effect:** Creates stronger attraction field with 250px range
+- **Mechanic:** Applies 40% slow to pulled enemies for 1 second (60 frames)
 - **Duration:** 2 seconds (120 frames)
-- **Best Use:** Pulls nearby fighters toward you
+- **Best Use:** Pull and slow nearby fighters simultaneously
 
 ### Skill 2: Boost
 - **Cooldown:** 1.6 seconds (95 frames)
 - **Effect:** Speed boost of 1.6x
-- **Best Use:** Quick acceleration
+- **Mechanic:** Gains bonus speed (force 6) toward nearest enemy
+- **Best Use:** Accelerate toward pulled enemies for impact
 
 ### Ultimate: Impact
 - **Charge Required:** 10 hits
 - **Cooldown:** 2.0 seconds (120 frames)
-- **Effect:** Grants `massMultiplier` of 3x for 2 seconds
+- **Effect:** Converts attraction into slam detonation
+- **Mechanic:** Deals 15 damage and applies 12 knockback to enemies within 150px
 - **Bonus:** Speed boost of 1.8x
-- **Best Use:** Heavy, fast collision
+- **Best Use:** Detonate on pulled enemies for massive damage
 
 ---
 

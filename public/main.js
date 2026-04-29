@@ -599,6 +599,14 @@ class Fighter {
         // Chaos zone: moving chaos zone that follows
         // This effect doesn't modify velocity directly
         // The actual chaos is handled in the collision logic
+      } else if (effect.type === 'gravitySlow') {
+        // Gravity slow: slows enemies being pulled
+        // This effect doesn't modify velocity directly
+        // The actual slowing is handled in the collision logic
+      } else if (effect.type === 'gravitySlam') {
+        // Gravity slam: converts attraction into slam detonation
+        // This effect doesn't modify velocity directly
+        // The actual slam is handled in the collision logic
       }
       return effect.duration > 0;
     });
@@ -1043,7 +1051,10 @@ class Fighter {
       this.addEffect('vortexPull', { angle: pullAngle, force: pullForce }, 60);
       this.cooldowns.skill1 = 90;
     } else if (this.shapeType === 'rhombus') {
-      this.addEffect('attraction', 200, 120); this.cooldowns.skill1 = 140;
+      // Heavy: stronger pull + slow effect
+      this.addEffect('attraction', 250, 120); // Stronger pull range (250px) for 2 seconds
+      this.addEffect('gravitySlow', 0.4, 120); // 40% slow to pulled enemies for 2 seconds
+      this.cooldowns.skill1 = 140;
     } else if (this.shapeType === 'star') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) { this.vx *= 2.5; this.vy *= 2.5; }
@@ -1147,8 +1158,18 @@ class Fighter {
       }
       this.cooldowns.skill2 = 130;
     } else if (this.shapeType === 'rhombus') {
+      // Boost: gains bonus speed toward pulled enemies
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) { this.vx *= 1.6; this.vy *= 1.6; }
+      // Add gravity attraction boost toward nearest enemy
+      if (this.target && this.target.hp > 0) {
+        const dx = this.target.x - this.x;
+        const dy = this.target.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+          this.vx += (dx / dist) * 6; this.vy += (dy / dist) * 6;
+        }
+      }
       this.cooldowns.skill2 = 95;
     } else if (this.shapeType === 'star') {
       this.addEffect('massMultiplier', 4, 45); this.vy += 8; this.cooldowns.skill2 = 115;
@@ -1199,7 +1220,9 @@ class Fighter {
       this.addEffect('chaosZone', { range: 120, force: 3 }, 180); // Chaos zone for 3 seconds
       this.addEffect('speedBoost', 25, 180);
     } else if (this.shapeType === 'rhombus') {
-      this.addEffect('massMultiplier', 3, 120); this.vx *= 1.8; this.vy *= 1.8;
+      // Impact: converts attraction into slam detonation
+      this.addEffect('gravitySlam', { range: 150, damage: 15, knockback: 12 }, 120); // Gravity slam for 2 seconds
+      this.vx *= 1.8; this.vy *= 1.8;
     } else if (this.shapeType === 'star') {
       this.vx *= 3.0; this.vy *= 3.0;
       this.addEffect('speedBoost', 30, 120); this.addEffect('massMultiplier', 2, 120);
@@ -1591,6 +1614,32 @@ class Fighter {
         ctx.arc(this.x, this.y, chaosRadius, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
+      } else if (effect.type === 'gravitySlow') {
+        // Rhombus Heavy: gravity slow aura
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#8844ff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#aa66ff';
+        ctx.shadowBlur = 20;
+        const slowRadius = this.radius + 15 + Math.sin(Date.now() / 100) * 5;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, slowRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (effect.type === 'gravitySlam') {
+        // Rhombus Impact: gravity slam detonation aura
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#ff6666';
+        ctx.shadowBlur = 30;
+        const slamRadius = this.radius + 20 + Math.sin(Date.now() / 60) * 6;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, slamRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       }
     }
 
@@ -1980,6 +2029,95 @@ class Fighter {
       ctx.restore();
     }
 
+    // Rhombus Gravity Chain weapon (drawn on top)
+    if (this.shapeType === 'rhombus') {
+      ctx.save();
+      
+      const gravitySlamEffect = this.activeEffects.find(e => e.type === 'gravitySlam');
+      const isSlamActive = gravitySlamEffect !== undefined;
+      const attractionEffect = this.activeEffects.find(e => e.type === 'attraction');
+      const isPulling = attractionEffect !== undefined;
+      
+      const chainLength = this.radius * 2.5;
+      const chainThickness = isSlamActive ? 6 : 3;
+      const chainColor = isSlamActive ? '#ff4444' : '#8844ff';
+      
+      // Find nearest enemy to draw chain toward
+      let targetX = this.x;
+      let targetY = this.y;
+      let hasTarget = false;
+      
+      if (this.target && this.target.hp > 0) {
+        targetX = this.target.x;
+        targetY = this.target.y;
+        hasTarget = true;
+      }
+      
+      // Draw chain/tether
+      if (hasTarget || isPulling) {
+        const dx = targetX - this.x;
+        const dy = targetY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        
+        // Chain segments
+        const segmentCount = 8;
+        const segmentLength = Math.min(dist, chainLength) / segmentCount;
+        
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = chainColor;
+        ctx.shadowColor = isSlamActive ? '#ff6666' : '#aa66ff';
+        ctx.shadowBlur = isSlamActive ? 30 : 15;
+        ctx.lineWidth = chainThickness;
+        
+        for (let i = 0; i < segmentCount; i++) {
+          const startX = this.x + Math.cos(angle) * segmentLength * i;
+          const startY = this.y + Math.sin(angle) * segmentLength * i;
+          const endX = this.x + Math.cos(angle) * segmentLength * (i + 1);
+          const endY = this.y + Math.sin(angle) * segmentLength * (i + 1);
+          
+          // Add slight wave to chain
+          const waveOffset = Math.sin(Date.now() / 100 + i) * 3;
+          const perpAngle = angle + Math.PI / 2;
+          const waveX = Math.cos(perpAngle) * waveOffset;
+          const waveY = Math.sin(perpAngle) * waveOffset;
+          
+          ctx.beginPath();
+          ctx.moveTo(startX + waveX, startY + waveY);
+          ctx.lineTo(endX + waveX, endY + waveY);
+          ctx.stroke();
+        }
+        
+        // Chain anchor at target
+        if (hasTarget) {
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = chainColor;
+          ctx.beginPath();
+          ctx.arc(targetX, targetY, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      
+      // Central gravity core
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = isSlamActive ? '#ff6666' : '#9966ff';
+      ctx.shadowColor = isSlamActive ? '#ff8888' : '#bb88ff';
+      ctx.shadowBlur = isSlamActive ? 35 : 20;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Inner pulsing core
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#ffffff';
+      const pulseSize = this.radius * 0.2 + Math.sin(Date.now() / 150) * 3;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, pulseSize, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.restore();
+    }
+
     // Triangle Piercing Lance weapon (drawn on top)
     if (this.shapeType === 'triangle') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -2142,6 +2280,7 @@ function handleCollisions(fighters) {
     if (f1.hp <= 0) continue;
     
     const attractionEffect = f1.activeEffects.find(e => e.type === 'attraction');
+    const gravitySlowEffect = f1.activeEffects.find(e => e.type === 'gravitySlow');
     if (attractionEffect) {
       for (let j = 0; j < fighters.length; j++) {
         if (i === j) continue;
@@ -2150,8 +2289,12 @@ function handleCollisions(fighters) {
         const dx = f1.x - f2.x; const dy = f1.y - f2.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0 && dist < attractionEffect.value) {
-          const force = 0.3 * (1 - dist / attractionEffect.value);
+          const force = 0.4 * (1 - dist / attractionEffect.value); // Stronger pull force
           f2.vx += (dx / dist) * force; f2.vy += (dy / dist) * force;
+          // Apply slow if gravitySlow effect is active
+          if (gravitySlowEffect) {
+            f2.addEffect('slow', gravitySlowEffect.value, 60); // Slow for 1 second
+          }
         }
       }
     }
@@ -2252,6 +2395,26 @@ function handleCollisions(fighters) {
           const chaosAngle = Math.random() * Math.PI * 2;
           f2.vx += Math.cos(chaosAngle) * chaosEffect.value.force;
           f2.vy += Math.sin(chaosAngle) * chaosEffect.value.force;
+        }
+      }
+    }
+    // Gravity Slam: converts attraction into slam detonation
+    const gravitySlamEffect = f1.activeEffects.find(e => e.type === 'gravitySlam');
+    if (gravitySlamEffect && gravitySlamEffect.value) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - f1.x; const dy = f2.y - f1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < gravitySlamEffect.value.range) {
+          // Apply slam damage and knockback
+          f2.hp -= gravitySlamEffect.value.damage;
+          f2.hitFlash = 15;
+          f2.lastAttacker = f1;
+          const slamAngle = Math.atan2(dy, dx);
+          f2.vx += Math.cos(slamAngle) * gravitySlamEffect.value.knockback;
+          f2.vy += Math.sin(slamAngle) * gravitySlamEffect.value.knockback;
         }
       }
     }
