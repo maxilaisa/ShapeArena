@@ -801,7 +801,13 @@ class Fighter {
     this.triggerSkillVFX('skill1');
     if (this.shapeType === 'circle') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      if (speed > 0) { this.vx *= 1.8; this.vy *= 1.8; this.addEffect('momentumBoost', 1, 30); }
+      if (speed > 0) { 
+        // Dash scales harder with current speed - reward momentum
+        const speedMultiplier = 1.5 + (speed / 10); // 1.5x to 2.5x based on speed
+        this.vx *= speedMultiplier; 
+        this.vy *= speedMultiplier; 
+        this.addEffect('momentumBoost', 1, 30); 
+      }
       this.cooldowns.skill1 = 120;
     } else if (this.shapeType === 'triangle') {
       if (this.target) {
@@ -877,7 +883,19 @@ class Fighter {
                        this.x + this.radius > arenaRight - wallMargin ||
                        this.y - this.radius < arenaTop + wallMargin ||
                        this.y + this.radius > arenaBottom - wallMargin;
-      if (nearWall) { this.vx *= -1.2; this.vy *= -1.2; this.vy += (Math.random() - 0.5) * 4; }
+      if (nearWall) {
+        // Targeted ricochet: bounce toward nearest enemy
+        let targetAngle = Math.atan2(-this.vy, -this.vx); // Default: bounce back
+        if (this.target && this.target.hp > 0) {
+          const dx = this.target.x - this.x;
+          const dy = this.target.y - this.y;
+          targetAngle = Math.atan2(dy, dx);
+        }
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        this.vx = Math.cos(targetAngle) * speed * 1.3;
+        this.vy = Math.sin(targetAngle) * speed * 1.3;
+        this.addEffect('predictionBoost', 1, 45); // Lock onto target briefly
+      }
       this.cooldowns.skill2 = 90;
     } else if (this.shapeType === 'triangle') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -936,7 +954,8 @@ class Fighter {
   useUltimate() {
     this.triggerSkillVFX('ultimate');
     if (this.shapeType === 'circle') {
-      this.addEffect('orbitalForce', 0.8, 90);
+      // Gravity Ring Trap: controlled orbit zone that pulls and traps enemies
+      this.addEffect('gravityRingTrap', 250, 180); // 250px range, 3 second duration
     } else if (this.shapeType === 'triangle') {
       this.addEffect('velocityCap', 15, 120);
     } else if (this.shapeType === 'square') {
@@ -1151,6 +1170,29 @@ class Fighter {
         ctx.arc(this.x, this.y, this.radius + 12, orbitAngle, orbitAngle + Math.PI * 1.4);
         ctx.stroke();
         ctx.restore();
+      } else if (effect.type === 'gravityRingTrap') {
+        // Gravity Ring Trap: multiple orbit layers
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.shadowColor = '#8844ff';
+        ctx.shadowBlur = 15;
+        const layers = 3;
+        for (let l = 0; l < layers; l++) {
+          const radius = this.radius + 20 + (l * 25);
+          const angle = Date.now() / (150 + l * 50) + (l * Math.PI / 3);
+          ctx.strokeStyle = l === 0 ? '#8844ff' : l === 1 ? '#aa66ff' : '#cc88ff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, radius, angle, angle + Math.PI * 1.2);
+          ctx.stroke();
+        }
+        // Inner glow
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = '#8844ff';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, effect.value, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       } else if (effect.type === 'predictionBoost') {
         // Diamond sight lines: target prediction arrow
         if (this.target) {
@@ -1321,6 +1363,29 @@ function handleCollisions(fighters) {
         if (dist > 0 && dist < attractionEffect.value) {
           const force = 0.3 * (1 - dist / attractionEffect.value);
           f2.vx += (dx / dist) * force; f2.vy += (dy / dist) * force;
+        }
+      }
+    }
+    // Gravity Ring Trap: pulls enemies and applies orbital force
+    const gravityTrapEffect = f1.activeEffects.find(e => e.type === 'gravityRingTrap');
+    if (gravityTrapEffect) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        const dx = f1.x - f2.x; const dy = f1.y - f2.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < gravityTrapEffect.value) {
+          // Pull toward center
+          const pullForce = 0.5 * (1 - dist / gravityTrapEffect.value);
+          f2.vx += (dx / dist) * pullForce; f2.vy += (dy / dist) * pullForce;
+          // Apply orbital force (perpendicular to pull direction)
+          const speed = Math.sqrt(f2.vx * f2.vx + f2.vy * f2.vy);
+          if (speed > 0) {
+            const angle = Math.atan2(f2.vy, f2.vx);
+            const perpAngle = angle + Math.PI / 2;
+            f2.vx += Math.cos(perpAngle) * 0.3;
+            f2.vy += Math.sin(perpAngle) * 0.3;
+          }
         }
       }
     }

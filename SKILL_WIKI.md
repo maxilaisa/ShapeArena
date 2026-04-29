@@ -4,28 +4,35 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 ---
 
-## Circle (Alpha) - "The Speedster"
+## Circle (Alpha) - "The Momentum Sniper"
+
+**Theme:** I control space with speed
 
 **Personality:** High mobility, balanced aggression
 
 ### Skill 1: Dash
 - **Cooldown:** 2.0 seconds (120 frames)
-- **Effect:** Multiplies current velocity by 1.8x
+- **Effect:** Multiplies current velocity by 1.5x to 2.5x based on current speed
 - **Bonus:** Grants `momentumBoost` effect for 0.5 seconds (30 frames)
-- **Best Use:** When already moving fast to maximize the multiplier
+- **Best Use:** When already moving fast to maximize the multiplier (rewards momentum)
+- **Identity:** "Speed is my weapon"
 
 ### Skill 2: Spin
 - **Cooldown:** 1.5 seconds (90 frames)
-- **Effect:** When near arena walls (within 100px), reverses velocity with 1.2x bounce multiplier
-- **Bonus:** Adds random vertical variation for unpredictable bounces
-- **Best Use:** Near walls to change direction quickly
+- **Effect:** When near arena walls (within 100px), converts wall bounce into targeted ricochet
+- **Bonus:** Locks onto nearest enemy briefly with `predictionBoost` for 0.75 seconds (45 frames)
+- **Mechanic:** Bounces toward target at 1.3x speed instead of random reflection
+- **Best Use:** Near walls to redirect attacks at enemies
+- **Identity:** "I never miss"
 
-### Ultimate: Meteor
+### Ultimate: Gravity Ring Trap
 - **Charge Required:** 10 hits
 - **Cooldown:** 3.0 seconds (180 frames)
-- **Effect:** Grants `orbitalForce` effect for 1.5 seconds (90 frames)
-- **Visual:** Swirling rings around the fighter
-- **Best Use:** Creates a gravitational field that influences nearby fighters
+- **Effect:** Creates controlled orbit zone (250px range) for 3 seconds (180 frames)
+- **Mechanic:** Pulls enemies toward center and applies orbital force (spins them around)
+- **Visual:** Multiple orbit layers (3 spinning rings) with purple glow
+- **Best Use:** Zone control and trapping enemies in your space
+- **Identity:** "This is my arena"
 
 ---
 
