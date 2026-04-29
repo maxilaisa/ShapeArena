@@ -189,27 +189,37 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 ---
 
-## Spiral (Zeta) - "The Chaotic"
+## 🌀 Spiral (Zeta) - "Mage / Dark"
 
-**Personality:** High chaos, unpredictable
+**Theme:** Chaos controller
+
+**Identity:** "Unpredictability IS the strategy"
+
+**Weapon:** Chaos Orb
+- A swirling unstable sphere
+- Random spikes or tendrils extend from it
+- During ultimate: becomes a mini tornado core
 
 ### Skill 1: Vortex
 - **Cooldown:** 1.5 seconds (90 frames)
-- **Effect:** Random direction burst with force 10
+- **Effect:** Random direction burst with force 8
 - **Bonus:** Grants `chaosSpin` for 0.5 seconds (30 frames)
-- **Best Use:** When stuck or needing to escape
+- **Mechanic:** Pulls enemies within 150px toward a random direction (force 5) for 1 second (60 frames)
+- **Best Use:** Disrupt enemy positioning while escaping
 
 ### Skill 2: Curve
 - **Cooldown:** 2.2 seconds (130 frames)
-- **Effect:** Teleports 50 units forward in current direction
-- **Best Use:** Sudden repositioning
+- **Effect:** Multi-blink (2 small teleports)
+- **Mechanic:** First blink 50 units forward, second blink 30 units in random offset direction
+- **Best Use:** Unpredictable repositioning to confuse enemies
 
 ### Ultimate: Tornado
 - **Charge Required:** 10 hits
 - **Cooldown:** 3.0 seconds (180 frames)
-- **Effect:** Grants `chaosSpin` of 4 for 3 seconds
+- **Effect:** Creates moving chaos zone that follows you
+- **Mechanic:** Applies random chaotic force (3) to enemies within 120px range
 - **Bonus:** Grants `speedBoost` of 25 for 3 seconds
-- **Best Use:** Maximum chaos with high speed
+- **Best Use:** Create chaos while moving at high speed
 
 ---
 

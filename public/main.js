@@ -591,6 +591,14 @@ class Fighter {
         // Knockback resistance: reduces knockback force
         // This effect doesn't modify velocity directly
         // The actual resistance is handled in the collision knockback logic
+      } else if (effect.type === 'vortexPull') {
+        // Vortex pull: pulls enemies toward a random direction
+        // This effect doesn't modify velocity directly
+        // The actual pulling is handled in the collision logic
+      } else if (effect.type === 'chaosZone') {
+        // Chaos zone: moving chaos zone that follows
+        // This effect doesn't modify velocity directly
+        // The actual chaos is handled in the collision logic
       }
       return effect.duration > 0;
     });
@@ -1026,9 +1034,14 @@ class Fighter {
       }
       this.cooldowns.skill1 = 130;
     } else if (this.shapeType === 'spiral') {
-      const angle = Math.random() * Math.PI * 2;
-      this.vx += Math.cos(angle) * 10; this.vy += Math.sin(angle) * 10;
-      this.addEffect('chaosSpin', 2, 30); this.cooldowns.skill1 = 90;
+      // Vortex: pulls enemies slightly toward random direction
+      const pullAngle = Math.random() * Math.PI * 2;
+      const pullForce = 5;
+      this.vx += Math.cos(pullAngle) * 8; this.vy += Math.sin(pullAngle) * 8;
+      this.addEffect('chaosSpin', 2, 30);
+      // Store pull data for effect processing
+      this.addEffect('vortexPull', { angle: pullAngle, force: pullForce }, 60);
+      this.cooldowns.skill1 = 90;
     } else if (this.shapeType === 'rhombus') {
       this.addEffect('attraction', 200, 120); this.cooldowns.skill1 = 140;
     } else if (this.shapeType === 'star') {
@@ -1122,10 +1135,15 @@ class Fighter {
       this.addEffect('shieldConversion', 0.5, 120); // 50% damage conversion to shield for 2 seconds
       this.cooldowns.skill2 = 110;
     } else if (this.shapeType === 'spiral') {
+      // Curve: multi-blink (2 small teleports)
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) {
         const angle = Math.atan2(this.vy, this.vx);
+        // First blink
         this.x += Math.cos(angle) * 50; this.y += Math.sin(angle) * 50;
+        // Second blink (random direction offset)
+        const offsetAngle = angle + (Math.random() - 0.5) * Math.PI;
+        this.x += Math.cos(offsetAngle) * 30; this.y += Math.sin(offsetAngle) * 30;
       }
       this.cooldowns.skill2 = 130;
     } else if (this.shapeType === 'rhombus') {
@@ -1177,7 +1195,9 @@ class Fighter {
       this.addEffect('knockbackResistance', 0.7, 180); // 70% knockback reduction for 3 seconds
       this.vx *= 0.3; this.vy *= 0.3;
     } else if (this.shapeType === 'spiral') {
-      this.addEffect('chaosSpin', 4, 180); this.addEffect('speedBoost', 25, 180);
+      // Tornado: creates moving chaos zone that follows you
+      this.addEffect('chaosZone', { range: 120, force: 3 }, 180); // Chaos zone for 3 seconds
+      this.addEffect('speedBoost', 25, 180);
     } else if (this.shapeType === 'rhombus') {
       this.addEffect('massMultiplier', 3, 120); this.vx *= 1.8; this.vy *= 1.8;
     } else if (this.shapeType === 'star') {
@@ -1545,6 +1565,32 @@ class Fighter {
         ctx.arc(this.x, this.y, pulseSize, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
+      } else if (effect.type === 'vortexPull') {
+        // Spiral Vortex: swirling pull effect
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#aa44ff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#cc66ff';
+        ctx.shadowBlur = 20;
+        const vortexRadius = this.radius + 20 + Math.sin(Date.now() / 100) * 5;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, vortexRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (effect.type === 'chaosZone') {
+        // Spiral Tornado: chaos zone aura
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#ff6666';
+        ctx.shadowBlur = 30;
+        const chaosRadius = this.radius + 30 + Math.sin(Date.now() / 80) * 8;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, chaosRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       }
     }
 
@@ -1856,6 +1902,84 @@ class Fighter {
       ctx.restore();
     }
 
+    // Spiral Chaos Orb weapon (drawn on top)
+    if (this.shapeType === 'spiral') {
+      ctx.save();
+      
+      const chaosZoneEffect = this.activeEffects.find(e => e.type === 'chaosZone');
+      const isTornadoActive = chaosZoneEffect !== undefined;
+      
+      const orbRadius = this.radius * 0.8;
+      const spikeCount = 8;
+      const instability = isTornadoActive ? 0.3 : 0.15;
+      
+      // Draw unstable sphere with random spikes
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = isTornadoActive ? '#ff4444' : '#aa44ff';
+      ctx.shadowColor = isTornadoActive ? '#ff6666' : '#cc66ff';
+      ctx.shadowBlur = isTornadoActive ? 35 : 20;
+      
+      // Main orb body
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, orbRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Random spikes/tendrils
+      for (let i = 0; i < spikeCount; i++) {
+        const baseAngle = (Math.PI * 2 / spikeCount) * i + (Date.now() / 500);
+        const spikeLength = orbRadius * (0.5 + Math.random() * instability);
+        const spikeAngle = baseAngle + (Math.random() - 0.5) * instability;
+        
+        const startX = this.x + Math.cos(spikeAngle) * orbRadius;
+        const startY = this.y + Math.sin(spikeAngle) * orbRadius;
+        const endX = this.x + Math.cos(spikeAngle) * (orbRadius + spikeLength);
+        const endY = this.y + Math.sin(spikeAngle) * (orbRadius + spikeLength);
+        
+        ctx.strokeStyle = isTornadoActive ? '#ff8888' : '#dd88ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+      
+      // Inner swirling effect
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        const spiralOffset = (Date.now() / 200) + (i * Math.PI * 2 / 3);
+        ctx.beginPath();
+        for (let j = 0; j < 20; j++) {
+          const a = spiralOffset + j * 0.3;
+          const r = (j / 20) * orbRadius * 0.8;
+          const px = this.x + r * Math.cos(a);
+          const py = this.y + r * Math.sin(a);
+          if (j === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+      
+      // Tornado core during ultimate
+      if (isTornadoActive) {
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#ff6666';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#ff4444';
+        ctx.shadowBlur = 40;
+        
+        for (let i = 0; i < 5; i++) {
+          const tornadoRadius = orbRadius + 10 + i * 8;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, tornadoRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      
+      ctx.restore();
+    }
+
     // Triangle Piercing Lance weapon (drawn on top)
     if (this.shapeType === 'triangle') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -2095,6 +2219,39 @@ function handleCollisions(fighters) {
         if (dist > 0 && dist < 80) {
           f2.hp -= 0.5; // Small damage over time
           f2.lastAttacker = f1;
+        }
+      }
+    }
+    // Vortex Pull: pull enemies toward random direction
+    const vortexEffect = f1.activeEffects.find(e => e.type === 'vortexPull');
+    if (vortexEffect && vortexEffect.value) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - f1.x; const dy = f2.y - f1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < 150) {
+          // Pull enemy toward the random direction
+          f2.vx += Math.cos(vortexEffect.value.angle) * vortexEffect.value.force;
+          f2.vy += Math.sin(vortexEffect.value.angle) * vortexEffect.value.force;
+        }
+      }
+    }
+    // Chaos Zone: moving chaos zone that follows
+    const chaosEffect = f1.activeEffects.find(e => e.type === 'chaosZone');
+    if (chaosEffect && chaosEffect.value) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - f1.x; const dy = f2.y - f1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < chaosEffect.value.range) {
+          // Apply random chaotic force
+          const chaosAngle = Math.random() * Math.PI * 2;
+          f2.vx += Math.cos(chaosAngle) * chaosEffect.value.force;
+          f2.vy += Math.sin(chaosAngle) * chaosEffect.value.force;
         }
       }
     }
