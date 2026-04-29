@@ -388,10 +388,14 @@ class Fighter {
       if (effect.type === 'massMultiplier') {
         this.mass = this.baseMass * effect.value;
       } else if (effect.type === 'velocityCap') {
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (speed > effect.value) {
-          const scale = effect.value / speed;
-          this.vx *= scale; this.vy *= scale;
+        // Skip velocity cap if velocityUncap is active
+        const uncapEffect = this.activeEffects.find(e => e.type === 'velocityUncap');
+        if (!uncapEffect) {
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (speed > effect.value) {
+            const scale = effect.value / speed;
+            this.vx *= scale; this.vy *= scale;
+          }
         }
       } else if (effect.type === 'orbitalForce') {
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -421,6 +425,16 @@ class Fighter {
           this.vx = Math.cos(curveAngle) * speed;
           this.vy = Math.sin(curveAngle) * speed;
         }
+      } else if (effect.type === 'afterimageTrail') {
+        // Afterimage trail: leave fake position copies
+        if (Math.random() < 0.3) {
+          this.trail.push({ x: this.x, y: this.y, alpha: 0.7 });
+        }
+        if (this.trail.length > 20) this.trail.shift();
+      } else if (effect.type === 'velocityUncap') {
+        // Velocity uncapped: temporarily ignore speed limits
+        // This effect doesn't modify velocity directly, it just allows higher speeds
+        // The actual uncapping is handled by skipping velocity cap checks
       }
       return effect.duration > 0;
     });
@@ -810,11 +824,21 @@ class Fighter {
       }
       this.cooldowns.skill1 = 120;
     } else if (this.shapeType === 'triangle') {
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      const executeThreshold = 10; // High speed threshold for execute bonus
       if (this.target) {
         const dx = this.target.x - this.x;
         const dy = this.target.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 0) { this.vx += (dx / dist) * 12; this.vy += (dy / dist) * 12; }
+        if (dist > 0) {
+          // Execute bonus: higher force at high speed
+          const force = speed > executeThreshold ? 18 : 12;
+          this.vx += (dx / dist) * force;
+          this.vy += (dy / dist) * force;
+          if (speed > executeThreshold) {
+            this.addEffect('executeBoost', 1, 60); // Execute bonus for 1 second
+          }
+        }
       }
       this.cooldowns.skill1 = 150;
     } else if (this.shapeType === 'square') {
@@ -898,12 +922,14 @@ class Fighter {
       }
       this.cooldowns.skill2 = 90;
     } else if (this.shapeType === 'triangle') {
+      // Charge: leaves afterimage trail (fake direction bait)
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) {
         const angle = Math.atan2(this.vy, this.vx);
         const perpAngle = angle + Math.PI / 2;
         this.vx += Math.cos(perpAngle) * 8; this.vy += Math.sin(perpAngle) * 8;
       }
+      this.addEffect('afterimageTrail', 1, 90); // Afterimage trail for 1.5 seconds
       this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'square') {
       this.vx *= 0.3; this.vy *= 0.3; this.addEffect('massMultiplier', 3, 60); this.cooldowns.skill2 = 120;
@@ -957,7 +983,8 @@ class Fighter {
       // Gravity Ring Trap: controlled orbit zone that pulls and traps enemies
       this.addEffect('gravityRingTrap', 250, 180); // 250px range, 3 second duration
     } else if (this.shapeType === 'triangle') {
-      this.addEffect('velocityCap', 15, 120);
+      // Spike: removes velocity cap temporarily (all-in burst, high risk)
+      this.addEffect('velocityUncap', 1, 120); // Remove velocity cap for 2 seconds
     } else if (this.shapeType === 'square') {
       this.addEffect('massMultiplier', 5, 180); this.vx *= 0.5; this.vy *= 0.5;
     } else if (this.shapeType === 'oval') {
@@ -1308,6 +1335,75 @@ class Fighter {
           }
         }
       }
+      ctx.restore();
+    }
+
+    // Triangle Piercing Lance weapon (drawn on top)
+    if (this.shapeType === 'triangle') {
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      const executeBoostEffect = this.activeEffects.find(e => e.type === 'executeBoost');
+      const isPierceActive = executeBoostEffect !== undefined;
+      const afterimageEffect = this.activeEffects.find(e => e.type === 'afterimageTrail');
+      const isChargeActive = afterimageEffect !== undefined;
+      
+      ctx.save();
+      
+      // Calculate direction based on movement or default upward
+      let angle = -Math.PI / 2; // Default: pointing up
+      if (speed > 0.5) {
+        angle = Math.atan2(this.vy, this.vx);
+      }
+      
+      // Spear length extends dramatically during Pierce
+      const baseLength = this.radius * 2.5;
+      const extendMultiplier = isPierceActive ? 3.5 : 1;
+      const spearLength = baseLength * extendMultiplier;
+      
+      // Draw dark streak trails
+      if (isChargeActive || speed > 8) {
+        ctx.strokeStyle = '#4400aa';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#6600ff';
+        ctx.shadowBlur = 20;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x - this.vx * 5, this.y - this.vy * 5);
+        ctx.stroke();
+      }
+      
+      // Draw the spear
+      const tipX = this.x + Math.cos(angle) * spearLength;
+      const tipY = this.y + Math.sin(angle) * spearLength;
+      
+      // Spear shaft
+      ctx.strokeStyle = '#8800ff';
+      ctx.lineWidth = isPierceActive ? 8 : 6;
+      ctx.shadowColor = '#aa00ff';
+      ctx.shadowBlur = isPierceActive ? 30 : 20;
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+      
+      // Spear tip (energy blade)
+      ctx.fillStyle = '#ff00ff';
+      ctx.shadowColor = '#ff00ff';
+      ctx.shadowBlur = 25;
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, isPierceActive ? 10 : 8, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Energy glow around spear
+      ctx.strokeStyle = '#aa00ff';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+      
       ctx.restore();
     }
   }

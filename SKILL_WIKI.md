@@ -43,25 +43,42 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 ---
 
-## Triangle (Beta) - "The Striker"
+## Triangle (Beta) - "The Assassin Diver"
+
+**Theme:** All-in burst, high risk
 
 **Personality:** High aggression and mobility
 
+### Weapon: Piercing Lance (Energy Spear)
+- **Visual:** Long, sharp forward-pointing spear with purple/magenta energy
+- **Normal State:** Spear points in movement direction, dark purple shaft with magenta tip
+- **During Pierce:** Spear extends dramatically (3.5x length) with brighter glow
+- **During Charge:** Leaves dark streak trails behind movement
+- **Feel:** Like a missile with a blade
+
 ### Skill 1: Pierce
 - **Cooldown:** 2.5 seconds (150 frames)
-- **Effect:** Rushes directly toward target with force 12
-- **Best Use:** When target is at medium to long range
+- **Effect:** Rushes directly toward target with force 12 (18 at high speed)
+- **Execute Bonus:** At speed > 10, gains 50% more force and `executeBoost` for 1 second
+- **Best Use:** When already moving fast for maximum burst damage
+- **Identity:** "High speed = high damage"
 
 ### Skill 2: Charge
 - **Cooldown:** 1.7 seconds (100 frames)
 - **Effect:** Adds perpendicular velocity boost of 8 (sideways dodge)
-- **Best Use:** When moving fast to create unpredictable movement
+- **Bonus:** Leaves afterimage trail for 1.5 seconds (fake direction bait)
+- **Mechanic:** Creates fake position copies to confuse enemies
+- **Best Use:** When moving fast to create unpredictable movement and misdirection
+- **Identity:** "You never know where I'll be"
 
 ### Ultimate: Spike
 - **Charge Required:** 10 hits
 - **Cooldown:** 2.0 seconds (120 frames)
-- **Effect:** Grants `velocityCap` of 15 for 2 seconds
-- **Best Use:** Prevents over-speeding and maintains control at high velocity
+- **Effect:** Removes velocity cap temporarily for 2 seconds
+- **Mechanic:** Ignores all speed limits, allows unlimited velocity (all-in burst)
+- **Risk:** High speed makes you harder to control
+- **Best Use:** When you need maximum speed for a finishing blow
+- **Identity:** "No limits, no mercy"
 
 ---
 
