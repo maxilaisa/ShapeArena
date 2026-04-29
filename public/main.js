@@ -9,6 +9,50 @@ document.body.appendChild(canvas);
 
 const ctx = canvas.getContext('2d');
 
+// ── Audio System ──────────────────────────────────────────────────────────
+const soundSprite = new Howl({
+  src: ['https://cdn.jsdelivr.net/npm/@rse/soundfx@1.1.3/soundfx.data-sprite.mp3'],
+  sprite: {
+    // Circle sounds
+    'circle_dash': [245000, 2343],
+    'circle_spin': [242000, 1061],
+    'circle_meteor_start': [173000, 6817],
+    'circle_meteor_end': [54000, 2034],
+    // Triangle sounds
+    'triangle_pierce': [167000, 793],
+    'triangle_charge': [212000, 854],
+    'triangle_spike_start': [181000, 1718],
+    'triangle_spike_end': [58000, 1472],
+    // Square sounds
+    'square_shield': [61000, 4304],
+    'square_slam': [171000, 633],
+    'square_slam_shockwave': [54000, 2034],
+    'square_quake_start': [188000, 4000],
+    'square_quake_pulse': [2813, 4000]
+  },
+  volume: 0.3
+});
+
+let audioEnabled = false;
+
+function enableAudio() {
+  if (!audioEnabled) {
+    audioEnabled = true;
+    soundSprite.play('circle_dash'); // Test sound
+  }
+}
+
+function playSound(soundName) {
+  if (audioEnabled) {
+    soundSprite.play(soundName);
+  }
+}
+
+// Enable audio on first user interaction
+document.addEventListener('click', enableAudio, { once: true });
+document.addEventListener('keydown', enableAudio, { once: true });
+document.addEventListener('touchstart', enableAudio, { once: true });
+
 // Arena configuration
 let ARENA_SIZE = 800;
 const BORDER_WIDTH = 2;
@@ -500,6 +544,7 @@ class Fighter {
             minSpeed: 4, maxSpeed: 8, shape: 'ring', glow: true,
             minDecay: 0.03, decayRange: 0.02
           });
+          playSound('square_slam_shockwave');
         }
       } else if (effect.type === 'quakePulse') {
         // Quake pulse: area knockback every 0.5s (30 frames)
@@ -509,6 +554,7 @@ class Fighter {
             minSpeed: 3, maxSpeed: 6, shape: 'ring', glow: true,
             minDecay: 0.04, decayRange: 0.02
           });
+          playSound('square_quake_pulse');
         }
       } else if (effect.type === 'velocityUncap') {
         // Velocity uncapped: temporarily ignore speed limits
@@ -902,6 +948,7 @@ class Fighter {
         this.addEffect('momentumBoost', 1, 30); 
       }
       this.cooldowns.skill1 = 120;
+      playSound('circle_dash');
     } else if (this.shapeType === 'triangle') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       const executeThreshold = 10; // High speed threshold for execute bonus
@@ -920,9 +967,11 @@ class Fighter {
         }
       }
       this.cooldowns.skill1 = 150;
+      playSound('triangle_pierce');
     } else if (this.shapeType === 'square') {
       this.addEffect('damageReduction', 0.5, 120); // 50% damage reduction for 2 seconds
       this.cooldowns.skill1 = 150;
+      playSound('square_shield');
     } else if (this.shapeType === 'oval') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) { this.vx *= 2.0; this.vy *= 2.0; this.addEffect('speedBoost', 15, 45); }
@@ -1001,6 +1050,7 @@ class Fighter {
         this.addEffect('predictionBoost', 1, 45); // Lock onto target briefly
       }
       this.cooldowns.skill2 = 90;
+      playSound('circle_spin');
     } else if (this.shapeType === 'triangle') {
       // Charge: leaves afterimage trail (fake direction bait)
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -1011,9 +1061,11 @@ class Fighter {
       }
       this.addEffect('afterimageTrail', 1, 90); // Afterimage trail for 1.5 seconds
       this.cooldowns.skill2 = 100;
+      playSound('triangle_charge');
     } else if (this.shapeType === 'square') {
       this.addEffect('slamShockwave', 1, 60); // Slam effect for 1 second
       this.cooldowns.skill2 = 120;
+      playSound('square_slam');
     } else if (this.shapeType === 'oval') {
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) {
@@ -1063,11 +1115,14 @@ class Fighter {
     if (this.shapeType === 'circle') {
       // Gravity Ring Trap: controlled orbit zone that pulls and traps enemies
       this.addEffect('gravityRingTrap', 250, 180); // 250px range, 3 second duration
+      playSound('circle_meteor_start');
     } else if (this.shapeType === 'triangle') {
       // Spike: removes velocity cap temporarily (all-in burst, high risk)
       this.addEffect('velocityUncap', 1, 120); // Remove velocity cap for 2 seconds
+      playSound('triangle_spike_start');
     } else if (this.shapeType === 'square') {
       this.addEffect('quakePulse', 1, 180); // Area knockback pulse for 3 seconds
+      playSound('square_quake_start');
     } else if (this.shapeType === 'oval') {
       this.addEffect('phaseShift', 1, 120); this.vx *= 1.5; this.vy *= 1.5;
     } else if (this.shapeType === 'hexagon') {
