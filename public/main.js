@@ -1547,11 +1547,21 @@ function handleCollisions(fighters) {
       const dist = Math.sqrt(dx * dx + dy * dy);
       const minDist = f1.radius + f2.radius;
 
-      if (dist < minDist) {
+      if (dist < minDist && dist > 0) {
         const nx = dx / dist; const ny = dy / dist;
         const overlap = minDist - dist;
         f1.x -= nx * overlap / 2; f1.y -= ny * overlap / 2;
         f2.x += nx * overlap / 2; f2.y += ny * overlap / 2;
+        
+        // Clamp positions to arena bounds to prevent teleportation
+        const { arenaLeft, arenaTop } = getArenaBounds();
+        const arenaRight = arenaLeft + ARENA_SIZE;
+        const arenaBottom = arenaTop + ARENA_SIZE;
+        
+        f1.x = Math.max(arenaLeft + f1.radius, Math.min(arenaRight - f1.radius, f1.x));
+        f1.y = Math.max(arenaTop + f1.radius, Math.min(arenaBottom - f1.radius, f1.y));
+        f2.x = Math.max(arenaLeft + f2.radius, Math.min(arenaRight - f2.radius, f2.x));
+        f2.y = Math.max(arenaTop + f2.radius, Math.min(arenaBottom - f2.radius, f2.y));
 
         const dvx = f1.vx - f2.vx; const dvy = f1.vy - f2.vy;
         const dvn = dvx * nx + dvy * ny;
