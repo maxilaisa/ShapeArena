@@ -226,22 +226,22 @@ class Fighter {
 
   initShapePhysics() {
     // Shape-specific physics: maxSpeed, wallBounceMultiplier, collisionRestitution
-    // Wall bounce is higher than collision knockback to ensure strong wall hits
+    // Collision knockback is high to reach walls, wall bounce is moderate to prevent glitching
     const shapePhysics = {
-      circle:       { maxSpeed: 12, wallBounce: 4.0, collisionRestitution: 3.0 },
-      triangle:     { maxSpeed: 15, wallBounce: 4.5, collisionRestitution: 3.5 }, // High mobility, fast
-      square:       { maxSpeed: 8,  wallBounce: 3.5, collisionRestitution: 2.5 }, // Tank, slow
-      oval:         { maxSpeed: 14, wallBounce: 4.2, collisionRestitution: 3.2 }, // Very fast
-      hexagon:      { maxSpeed: 9,  wallBounce: 3.8, collisionRestitution: 2.8 }, // Precision, moderate
-      spiral:       { maxSpeed: 11, wallBounce: 4.3, collisionRestitution: 3.3 }, // Chaotic, bouncy
-      rhombus:      { maxSpeed: 10, wallBounce: 4.0, collisionRestitution: 3.0 },
-      star:         { maxSpeed: 13, wallBounce: 5.0, collisionRestitution: 3.8 }, // Aggressive, fast
-      heart:        { maxSpeed: 10, wallBounce: 3.8, collisionRestitution: 2.8 },
-      diamond:      { maxSpeed: 9,  wallBounce: 3.6, collisionRestitution: 2.6 }, // Precision, controlled
-      crescent:     { maxSpeed: 11, wallBounce: 4.0, collisionRestitution: 3.0 },
-      dodecahedron: { maxSpeed: 8,  wallBounce: 3.4, collisionRestitution: 2.4 }  // Disciplined, slow
+      circle:       { maxSpeed: 12, wallBounce: 1.8, collisionRestitution: 3.0 },
+      triangle:     { maxSpeed: 15, wallBounce: 2.0, collisionRestitution: 3.5 }, // High mobility, fast
+      square:       { maxSpeed: 8,  wallBounce: 1.5, collisionRestitution: 2.5 }, // Tank, slow
+      oval:         { maxSpeed: 14, wallBounce: 1.9, collisionRestitution: 3.2 }, // Very fast
+      hexagon:      { maxSpeed: 9,  wallBounce: 1.6, collisionRestitution: 2.8 }, // Precision, moderate
+      spiral:       { maxSpeed: 11, wallBounce: 1.9, collisionRestitution: 3.3 }, // Chaotic, bouncy
+      rhombus:      { maxSpeed: 10, wallBounce: 1.7, collisionRestitution: 3.0 },
+      star:         { maxSpeed: 13, wallBounce: 2.0, collisionRestitution: 3.8 }, // Aggressive, fast
+      heart:        { maxSpeed: 10, wallBounce: 1.6, collisionRestitution: 2.8 },
+      diamond:      { maxSpeed: 9,  wallBounce: 1.5, collisionRestitution: 2.6 }, // Precision, controlled
+      crescent:     { maxSpeed: 11, wallBounce: 1.7, collisionRestitution: 3.0 },
+      dodecahedron: { maxSpeed: 8,  wallBounce: 1.4, collisionRestitution: 2.4 }  // Disciplined, slow
     };
-    const physics = shapePhysics[this.shapeType] || { maxSpeed: 10, wallBounce: 4.0, collisionRestitution: 3.0 };
+    const physics = shapePhysics[this.shapeType] || { maxSpeed: 10, wallBounce: 1.8, collisionRestitution: 3.0 };
     this.maxSpeed = physics.maxSpeed;
     this.wallBounceMultiplier = physics.wallBounce;
     this.collisionRestitution = physics.collisionRestitution;
