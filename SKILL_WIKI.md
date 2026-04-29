@@ -10,6 +10,13 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 **Personality:** High mobility, balanced aggression
 
+### Weapon: Orbit Blades (Dual Rings)
+- **Visual:** Two glowing green rings spinning around the body (6 orbiting blade orbs total)
+- **Normal State:** 3 green orbs per ring orbit at different speeds
+- **During Dash:** Orbs stretch into arcs aligned with movement direction (like slicing wind)
+- **During Ultimate:** Multiple purple orbit layers appear (Gravity Ring Trap effect)
+- **Feel:** Cutting space itself with speed
+
 ### Skill 1: Dash
 - **Cooldown:** 2.0 seconds (120 frames)
 - **Effect:** Multiplies current velocity by 1.5x to 2.5x based on current speed
