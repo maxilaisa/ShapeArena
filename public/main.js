@@ -1254,6 +1254,44 @@ class Fighter {
     const bodyColor = this.hitFlash > 0 ? '#fff' : this.color;
     this.drawShape(this.x, this.y, this.radius, bodyColor, 1);
 
+    // Circle Orbit Blades weapon
+    if (this.shapeType === 'circle') {
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      const momentumBoostEffect = this.activeEffects.find(e => e.type === 'momentumBoost');
+      const isDashing = momentumBoostEffect !== undefined;
+      
+      ctx.save();
+      ctx.shadowColor = '#00ccff';
+      ctx.shadowBlur = 15;
+      
+      // Two spinning rings
+      for (let ring = 0; ring < 2; ring++) {
+        const ringRadius = this.radius + 15 + (ring * 12);
+        const rotation = Date.now() / (200 + ring * 100) + (ring * Math.PI);
+        
+        if (isDashing) {
+          // Stretch into arcs during Dash (like slicing wind)
+          const dashAngle = Math.atan2(this.vy, this.vx);
+          const arcLength = Math.PI * 0.8;
+          ctx.strokeStyle = ring === 0 ? '#00ccff' : '#00ffff';
+          ctx.lineWidth = 3;
+          ctx.globalAlpha = 0.8;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, ringRadius, dashAngle - arcLength/2, dashAngle + arcLength/2);
+          ctx.stroke();
+        } else {
+          // Normal spinning rings
+          ctx.strokeStyle = ring === 0 ? '#00ccff' : '#00ffff';
+          ctx.lineWidth = 2;
+          ctx.globalAlpha = 0.6;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, ringRadius, rotation, rotation + Math.PI * 1.5);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
     // Outline
     this.drawShapeOutline(this.x, this.y, this.radius, '#fff', 2);
 
