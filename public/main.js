@@ -1266,54 +1266,49 @@ class Fighter {
 
     // Circle Orbit Blades weapon (drawn on top)
     if (this.shapeType === 'circle') {
-      // Debug: confirm circle detection
-      ctx.fillStyle = '#00ff00';
-      ctx.font = 'bold 14px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('CIRCLE', this.x, this.y - this.radius - 20);
-      
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       const momentumBoostEffect = this.activeEffects.find(e => e.type === 'momentumBoost');
       const isDashing = momentumBoostEffect !== undefined;
       
       ctx.save();
       
-      // Two spinning rings - bright yellow for maximum visibility
+      // Two orbiting blade pairs (green orbs)
       for (let ring = 0; ring < 2; ring++) {
-        const ringRadius = this.radius + 30 + (ring * 20);
-        const rotation = Date.now() / (80 + ring * 40) + (ring * Math.PI);
+        const ringRadius = this.radius + 28 + (ring * 18);
+        const rotation = Date.now() / (120 + ring * 60) + (ring * Math.PI / 2);
         
-        if (isDashing) {
-          // Stretch into arcs during Dash (like slicing wind)
-          const dashAngle = Math.atan2(this.vy, this.vx);
-          const arcLength = Math.PI * 1.3;
-          ctx.strokeStyle = '#ffff00';
-          ctx.lineWidth = 10;
-          ctx.shadowColor = '#ff0000';
-          ctx.shadowBlur = 50;
-          ctx.globalAlpha = 1;
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, ringRadius, dashAngle - arcLength/2, dashAngle + arcLength/2);
-          ctx.stroke();
-        } else {
-          // Normal spinning rings - bright yellow
-          ctx.strokeStyle = '#ffff00';
-          ctx.lineWidth = 10;
-          ctx.shadowColor = '#ff0000';
-          ctx.shadowBlur = 40;
-          ctx.globalAlpha = 1;
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, ringRadius, rotation, rotation + Math.PI * 2);
-          ctx.stroke();
+        // Draw 3 orbiting blades per ring instead of complete ring
+        for (let blade = 0; blade < 3; blade++) {
+          const bladeAngle = rotation + (blade * Math.PI * 2 / 3);
+          
+          if (isDashing) {
+            // Stretch into arcs during Dash (like slicing wind)
+            const dashAngle = Math.atan2(this.vy, this.vx);
+            const arcLength = Math.PI * 0.4;
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 6;
+            ctx.shadowColor = '#00aa00';
+            ctx.shadowBlur = 20;
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, ringRadius, dashAngle - arcLength/2, dashAngle + arcLength/2);
+            ctx.stroke();
+          } else {
+            // Normal orbiting blades - green orbs
+            const bladeX = this.x + Math.cos(bladeAngle) * ringRadius;
+            const bladeY = this.y + Math.sin(bladeAngle) * ringRadius;
+            
+            ctx.fillStyle = '#00ff00';
+            ctx.shadowColor = '#00aa00';
+            ctx.shadowBlur = 15;
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(bladeX, bladeY, 8, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
       ctx.restore();
-    } else {
-      // Debug: show shapeType for non-circle fighters
-      ctx.fillStyle = '#ff0000';
-      ctx.font = '12px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(this.shapeType, this.x, this.y - this.radius - 15);
     }
   }
 
