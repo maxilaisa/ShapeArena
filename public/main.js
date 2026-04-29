@@ -560,6 +560,22 @@ class Fighter {
         // Velocity uncapped: temporarily ignore speed limits
         // This effect doesn't modify velocity directly, it just allows higher speeds
         // The actual uncapping is handled by skipping velocity cap checks
+      } else if (effect.type === 'invisibility') {
+        // Invisibility: fighter becomes transparent and harder to hit
+        // This effect doesn't modify velocity directly
+        // The actual invisibility is handled in the draw method
+      } else if (effect.type === 'ghostTrail') {
+        // Ghost trail: leaves damaging echoes behind
+        // Create ghost particles periodically
+        if (effect.duration % 10 === 0) {
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (speed > 3) {
+            spawnParticles(this.x, this.y, this.color, 2, {
+              minSpeed: 0, maxSpeed: 0, shape: 'ghost', glow: true,
+              minDecay: 0.05, decayRange: 0.02
+            });
+          }
+        }
       }
       return effect.duration > 0;
     });
@@ -973,9 +989,13 @@ class Fighter {
       this.cooldowns.skill1 = 150;
       playSound('square_shield');
     } else if (this.shapeType === 'oval') {
+      // Speed: exceed normal speed caps briefly
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      if (speed > 0) { this.vx *= 2.0; this.vy *= 2.0; this.addEffect('speedBoost', 15, 45); }
-      this.cooldowns.skill1 = 100;
+      if (speed > 0) {
+        this.vx *= 1.8; this.vy *= 1.8;
+        this.addEffect('velocityUncap', 1, 90); // Remove velocity cap for 1.5 seconds
+      }
+      this.cooldowns.skill1 = 120;
     } else if (this.shapeType === 'hexagon') {
       if (this.target) {
         const dx = this.target.x - this.x;
@@ -1067,13 +1087,15 @@ class Fighter {
       this.cooldowns.skill2 = 120;
       playSound('square_slam');
     } else if (this.shapeType === 'oval') {
+      // Drift: gains invisibility frames during lateral movement
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
       if (speed > 0) {
         const angle = Math.atan2(this.vy, this.vx);
         const driftAngle = angle + Math.PI / 2;
         this.vx += Math.cos(driftAngle) * 6; this.vy += Math.sin(driftAngle) * 6;
+        this.addEffect('invisibility', 1, 60); // Invisibility for 1 second
       }
-      this.cooldowns.skill2 = 85;
+      this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'hexagon') {
       this.addEffect('massMultiplier', 2.5, 90); this.cooldowns.skill2 = 110;
     } else if (this.shapeType === 'spiral') {
@@ -1124,7 +1146,9 @@ class Fighter {
       this.addEffect('quakePulse', 1, 180); // Area knockback pulse for 3 seconds
       playSound('square_quake_start');
     } else if (this.shapeType === 'oval') {
-      this.addEffect('phaseShift', 1, 120); this.vx *= 1.5; this.vy *= 1.5;
+      // Phase: leaves ghost trail that damages enemies
+      this.addEffect('ghostTrail', 1, 180); // Ghost trail for 3 seconds
+      this.vx *= 1.5; this.vy *= 1.5;
     } else if (this.shapeType === 'hexagon') {
       this.addEffect('massMultiplier', 8, 150); this.vx *= 0.3; this.vy *= 0.3;
     } else if (this.shapeType === 'spiral') {
@@ -1411,6 +1435,30 @@ class Fighter {
         ctx.arc(this.x, this.y, this.radius + 8, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
+      } else if (effect.type === 'invisibility') {
+        // Oval Drift: transparency effect
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#cc66ff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#cc66ff';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y, this.radius * 1.3, this.radius * 0.8, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (effect.type === 'ghostTrail') {
+        // Oval Phase: ghost trail aura
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = '#ff66ff';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#ff66ff';
+        ctx.shadowBlur = 25;
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y, this.radius * 1.5, this.radius * 1.0, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
       } else if (effect.type === 'slamShockwave') {
         // Square Slam: charging indicator
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -1566,6 +1614,106 @@ class Fighter {
         ctx.fillRect(this.x + fortressSize - cornerSize, this.y - fortressSize - cornerSize, cornerSize * 2, cornerSize * 2);
         ctx.fillRect(this.x - fortressSize - cornerSize, this.y + fortressSize - cornerSize, cornerSize * 2, cornerSize * 2);
         ctx.fillRect(this.x + fortressSize - cornerSize, this.y + fortressSize - cornerSize, cornerSize * 2, cornerSize * 2);
+      }
+      
+      ctx.restore();
+    }
+
+    // Oval Phase Blades weapon (drawn on top)
+    if (this.shapeType === 'oval') {
+      ctx.save();
+      
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      const flicker = 0.5 + Math.sin(Date.now() / 50) * 0.3;
+      
+      // Twin curved knives
+      const bladeLength = this.radius * 1.8;
+      const bladeWidth = 8;
+      
+      // Left blade
+      ctx.globalAlpha = flicker;
+      ctx.strokeStyle = '#cc66ff';
+      ctx.lineWidth = bladeWidth;
+      ctx.shadowColor = '#aa44ff';
+      ctx.shadowBlur = 15;
+      
+      ctx.beginPath();
+      ctx.moveTo(this.x - this.radius * 0.5, this.y);
+      ctx.quadraticCurveTo(
+        this.x - this.radius * 1.2, this.y - bladeLength * 0.3,
+        this.x - this.radius * 0.8, this.y - bladeLength
+      );
+      ctx.stroke();
+      
+      // Right blade
+      ctx.beginPath();
+      ctx.moveTo(this.x + this.radius * 0.5, this.y);
+      ctx.quadraticCurveTo(
+        this.x + this.radius * 1.2, this.y + bladeLength * 0.3,
+        this.x + this.radius * 0.8, this.y + bladeLength
+      );
+      ctx.stroke();
+      
+      // Ghost trail during fast movement
+      if (speed > 8) {
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#9933ff';
+        ctx.lineWidth = bladeWidth * 0.7;
+        ctx.shadowBlur = 10;
+        
+        // Echo blades lagging behind
+        const lagX = this.x - this.vx * 2;
+        const lagY = this.y - this.vy * 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(lagX - this.radius * 0.5, lagY);
+        ctx.quadraticCurveTo(
+          lagX - this.radius * 1.2, lagY - bladeLength * 0.3,
+          lagX - this.radius * 0.8, lagY - bladeLength
+        );
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(lagX + this.radius * 0.5, lagY);
+        ctx.quadraticCurveTo(
+          lagX + this.radius * 1.2, lagY + bladeLength * 0.3,
+          lagX + this.radius * 0.8, lagY + bladeLength
+        );
+        ctx.stroke();
+      }
+      
+      // Phase ultimate: weapons lag behind like echoes
+      const ghostEffect = this.activeEffects.find(e => e.type === 'ghostTrail');
+      if (ghostEffect) {
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = '#ff66ff';
+        ctx.lineWidth = bladeWidth * 0.8;
+        ctx.shadowColor = '#ff44ff';
+        ctx.shadowBlur = 20;
+        
+        // Multiple echo layers
+        for (let i = 1; i <= 3; i++) {
+          const echoX = this.x - this.vx * i * 3;
+          const echoY = this.y - this.vy * i * 3;
+          const echoAlpha = 0.4 - i * 0.1;
+          ctx.globalAlpha = echoAlpha;
+          
+          ctx.beginPath();
+          ctx.moveTo(echoX - this.radius * 0.5, echoY);
+          ctx.quadraticCurveTo(
+            echoX - this.radius * 1.2, echoY - bladeLength * 0.3,
+            echoX - this.radius * 0.8, echoY - bladeLength
+          );
+          ctx.stroke();
+          
+          ctx.beginPath();
+          ctx.moveTo(echoX + this.radius * 0.5, echoY);
+          ctx.quadraticCurveTo(
+            echoX + this.radius * 1.2, echoY + bladeLength * 0.3,
+            echoX + this.radius * 0.8, echoY + bladeLength
+          );
+          ctx.stroke();
+        }
       }
       
       ctx.restore();
@@ -1795,6 +1943,21 @@ function handleCollisions(fighters) {
           const knockback = (200 - dist) / 15;
           f2.vx += (dx / dist) * knockback;
           f2.vy += (dy / dist) * knockback;
+        }
+      }
+    }
+    // Ghost Trail: damage enemies who contact the trail
+    const ghostEffect = f1.activeEffects.find(e => e.type === 'ghostTrail');
+    if (ghostEffect) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - f1.x; const dy = f2.y - f1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < 80) {
+          f2.hp -= 0.5; // Small damage over time
+          f2.lastAttacker = f1;
         }
       }
     }

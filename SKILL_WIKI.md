@@ -122,27 +122,36 @@ This wiki documents all fighter skills and their mechanics. All skills are physi
 
 ---
 
-## Oval (Delta) - "The Evasive"
+## 🟣 Oval (Delta) - "Marksman / Dark"
 
-**Personality:** Maximum mobility, low precision
+**Theme:** Untouchable speed demon
+
+**Identity:** "You can't hit what you can't track"
+
+**Weapon:** Phase Blades (Twin Curved Knives)
+- Thin, curved blades that flicker in and out
+- Leave ghost trails when moving fast
+- During Phase: weapons lag behind like echoes
 
 ### Skill 1: Speed
-- **Cooldown:** 1.7 seconds (100 frames)
-- **Effect:** Multiplies velocity by 2.0x
-- **Bonus:** Grants `speedBoost` of 15 for 0.75 seconds (45 frames)
-- **Best Use:** Maximum speed burst
+- **Cooldown:** 2.0 seconds (120 frames)
+- **Effect:** Multiplies velocity by 1.8x
+- **Bonus:** Grants `velocityUncap` for 1.5 seconds (90 frames) - exceeds normal speed caps
+- **Best Use:** Break speed limits for brief bursts of unmatched mobility
 
 ### Skill 2: Drift
-- **Cooldown:** 1.4 seconds (85 frames)
+- **Cooldown:** 1.7 seconds (100 frames)
 - **Effect:** Adds perpendicular drift force of 6
-- **Best Use:** Evasive sidestepping while maintaining forward momentum
+- **Bonus:** Grants `invisibility` for 1 second (60 frames) - becomes transparent
+- **Best Use:** Evasive sidestepping while becoming harder to track
 
 ### Ultimate: Phase
 - **Charge Required:** 10 hits
-- **Cooldown:** 2.0 seconds (120 frames)
-- **Effect:** Grants `phaseShift` for 2 seconds
-- **Bonus:** Speed boost of 1.5x
-- **Best Use:** Pass through other fighters without collision damage
+- **Cooldown:** 3.0 seconds (180 frames)
+- **Effect:** Grants `ghostTrail` for 3 seconds
+- **Bonus:** Speed boost of 1.5x, leaves damaging ghost echoes behind
+- **Mechanic:** Enemies within 80px of the trail take 0.5 damage per frame
+- **Best Use:** Create a damaging path while moving at high speed
 
 ---
 
