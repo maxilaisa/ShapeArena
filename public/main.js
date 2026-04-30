@@ -644,6 +644,9 @@ class Fighter {
       if (!this.formLocked && !this.perfectAdaptation) {
         this.formTimer--;
         if (this.formTimer <= 0) {
+          // Smooth form transition: dampen velocity before switching
+          this.vx *= 0.7;
+          this.vy *= 0.7;
           this.currentFormIndex = (this.currentFormIndex + 1) % this.forms.length;
           this.formTimer = this.formDuration;
         }
@@ -651,9 +654,13 @@ class Fighter {
       
       // Update form lock
       if (this.formLocked) {
-        this.formLockDuration--;
-        if (this.formLockDuration <= 0) {
-          this.formLocked = false;
+        if (this.formLockDelay > 0) {
+          this.formLockDelay--; // Delay period: can still Adapt
+        } else {
+          this.formLockDuration--; // Lock period: cannot Adapt
+          if (this.formLockDuration <= 0) {
+            this.formLocked = false;
+          }
         }
       }
       
@@ -662,6 +669,7 @@ class Fighter {
         this.perfectAdaptationDuration--;
         if (this.perfectAdaptationDuration <= 0) {
           this.perfectAdaptation = false;
+          this.adaptiveAttacks = false; // Disable adaptive attacks
           this.adaptationFatigue = true;
           this.adaptationFatigueDuration = 60;
         }
@@ -814,6 +822,105 @@ class Fighter {
           }
         }
         this.orbitStrikeCooldown = 25; // 0.4 seconds
+      }
+    }
+
+    // Dodecahedron-specific: Adaptive Poly-Core weapon
+    if (this.shapeType === 'dodecahedron') {
+      this.formStrikeCooldown = (this.formStrikeCooldown || 0) - 1;
+      if (this.formStrikeCooldown <= 0) {
+        // Adaptive Attacks: cycle forms automatically during Transform ultimate
+        let attackForm;
+        if (this.adaptiveAttacks) {
+          attackForm = this.forms[this.adaptiveAttackIndex];
+          this.adaptiveAttackIndex = (this.adaptiveAttackIndex + 1) % this.forms.length;
+        } else {
+          attackForm = this.forms[this.currentFormIndex];
+        }
+        
+        if (attackForm === 'aggression') {
+          // Spike Jab: short forward stab with high knockback
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          const jabRange = 60;
+          const jabX = this.x + (this.vx / (speed || 1)) * jabRange;
+          const jabY = this.y + (this.vy / (speed || 1)) * jabRange;
+          for (const f of fighters) {
+            if (f === this || f.hp <= 0) continue;
+            const dx = f.x - jabX;
+            const dy = f.y - jabY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 20) {
+              const bonusDmg = speed > 6 ? 5 : 0; // Bonus damage if moving fast
+              f.hp -= (8 + bonusDmg);
+              f.hitFlash = 10;
+              f.lastAttacker = this;
+              const knockbackForce = 8;
+              if (dist > 0) {
+                f.vx += (dx / dist) * knockbackForce;
+                f.vy += (dy / dist) * knockbackForce;
+              }
+              spawnParticles(jabX, jabY, '#ff6600', 8, {
+                minSpeed: 2, maxSpeed: 5, shape: 'triangle', glow: true,
+                minDecay: 0.05, decayRange: 0.03
+              });
+            }
+          }
+        } else if (attackForm === 'mobility') {
+          // Blade Dash: small forward slice + micro dash
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (speed > 0) {
+            const angle = Math.atan2(this.vy, this.vx);
+            this.vx += Math.cos(angle) * 2;
+            this.vy += Math.sin(angle) * 2;
+            const dashX = this.x + Math.cos(angle) * 40;
+            const dashY = this.y + Math.sin(angle) * 40;
+            for (const f of fighters) {
+              if (f === this || f.hp <= 0) continue;
+              const dx = f.x - dashX;
+              const dy = f.y - dashY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 20) {
+                f.hp -= 3; // Low damage
+                f.hitFlash = 5;
+                f.lastAttacker = this;
+                spawnParticles(dashX, dashY, '#00aaff', 5, {
+                  minSpeed: 1, maxSpeed: 3, shape: 'line', glow: true,
+                  minDecay: 0.05, decayRange: 0.03
+                });
+              }
+            }
+          }
+        } else if (attackForm === 'precision') {
+          // Prism Shot: thin straight projectile with high accuracy
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (this.target && speed > 0) {
+            const angle = Math.atan2(this.vy, this.vx);
+            const shotX = this.x + Math.cos(angle) * 70;
+            const shotY = this.y + Math.sin(angle) * 70;
+            for (const f of fighters) {
+              if (f === this || f.hp <= 0) continue;
+              const dx = f.x - shotX;
+              const dy = f.y - shotY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < 15) {
+                const predBonus = this.activeEffects.find(e => e.type === 'predictionBoost') ? 3 : 0;
+                f.hp -= (5 + predBonus); // Scales with prediction
+                f.hitFlash = 5;
+                f.lastAttacker = this;
+                // Low knockback
+                if (dist > 0) {
+                  f.vx += (dx / dist) * 2;
+                  f.vy += (dy / dist) * 2;
+                }
+                spawnParticles(shotX, shotY, '#ffdd00', 6, {
+                  minSpeed: 2, maxSpeed: 4, shape: 'circle', glow: true,
+                  minDecay: 0.05, decayRange: 0.03
+                });
+              }
+            }
+          }
+        }
+        this.formStrikeCooldown = 25; // 0.4 seconds
       }
     }
 
@@ -1917,24 +2024,59 @@ class Fighter {
       }
       this.cooldowns.skill1 = 105;
     } else if (this.shapeType === 'dodecahedron') {
-      // Adapt: skip to next form in cycle with bonus
-      if (!this.formLocked) {
-        this.currentFormIndex = (this.currentFormIndex + 1) % this.forms.length;
-        this.formTimer = this.formDuration; // Reset timer on skip
-      }
-      
-      const currentForm = this.forms[this.currentFormIndex];
-      
-      // Apply form-specific bonus for 1.5 seconds
-      if (currentForm === 'aggression') {
-        this.addEffect('massMultiplier', 2.0, 90); // +2.0x mass
+      // Adapt: skip to next form in cycle with Perfect Adapt Bonus
+      if (!this.formLocked || this.formLockDelay > 0) {
+        const nextFormIndex = (this.currentFormIndex + 1) % this.forms.length;
+        const nextForm = this.forms[nextFormIndex];
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        if (speed > 0) { this.vx *= 1.3; this.vy *= 1.3; }
-      } else if (currentForm === 'mobility') {
-        this.addEffect('speedBoost', 20, 90); // +speedBoost 20
-        this.addEffect('dragReduction', 0.5, 90); // Reduced drag
-      } else if (currentForm === 'precision') {
-        this.addEffect('predictionBoost', 2, 90); // +predictionBoost 2
+        let perfectAdapt = false;
+        
+        // Perfect Adapt Bonus: skillful form switching
+        if (nextForm === 'aggression' && this.target) {
+          const dx = this.target.x - this.x;
+          const dy = this.target.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 150) {
+            perfectAdapt = true; // Switching to Aggression near enemy
+          }
+        } else if (nextForm === 'mobility' && speed > 7) {
+          perfectAdapt = true; // Switching to Mobility while moving fast
+        } else if (nextForm === 'precision' && this.target) {
+          perfectAdapt = true; // Switching to Precision while targeting
+        }
+        
+        this.currentFormIndex = nextFormIndex;
+        this.formTimer = this.formDuration; // Reset timer on skip
+        
+        const currentForm = this.forms[this.currentFormIndex];
+        
+        // Apply form-specific bonus for 1.5 seconds
+        if (currentForm === 'aggression') {
+          const massBonus = perfectAdapt ? 2.4 : 2.0; // +20% extra impact
+          this.addEffect('massMultiplier', massBonus, 90);
+          if (speed > 0) { this.vx *= (perfectAdapt ? 1.5 : 1.3); this.vy *= (perfectAdapt ? 1.5 : 1.3); }
+        } else if (currentForm === 'mobility') {
+          this.addEffect('speedBoost', 20, 90);
+          this.addEffect('dragReduction', 0.5, 90);
+          if (perfectAdapt) {
+            // Extra dash burst
+            const angle = Math.atan2(this.vy, this.vx);
+            this.vx += Math.cos(angle) * 3;
+            this.vy += Math.sin(angle) * 3;
+          }
+        } else if (currentForm === 'precision') {
+          const predBonus = perfectAdapt ? 3 : 2;
+          this.addEffect('predictionBoost', predBonus, 90);
+          if (perfectAdapt) {
+            // Auto-aim assist for 30 frames
+            this.addEffect('autoAimAssist', 1, 30);
+          }
+        }
+        
+        if (perfectAdapt) {
+          this.perfectAdaptation = true;
+          this.perfectAdaptationDuration = 60; // 1 second
+        }
       }
       
       this.cooldowns.skill1 = 150;
@@ -2092,7 +2234,7 @@ class Fighter {
       // Face: convert missing HP to power, lock current form
       const hpPercent = this.hp / this.maxHp;
       const missingHp = 1 - hpPercent;
-      const powerMultiplier = 1 + (missingHp * 0.8); // Up to 1.8x power based on missing HP
+      const powerMultiplier = Math.max(1.2, 1 + (missingHp * 0.8)); // Minimum 1.2x power, up to 1.8x
       
       const currentForm = this.forms[this.currentFormIndex];
       
@@ -2108,9 +2250,10 @@ class Fighter {
         this.addEffect('predictionBoost', 1.5 * powerMultiplier, 90);
       }
       
-      // Lock current form for 1.5 seconds
+      // Delayed Lock: 20 frames to still Adapt before form locks
+      this.formLockDelay = 20; // 0.33 seconds
       this.formLocked = true;
-      this.formLockDuration = 90;
+      this.formLockDuration = 90; // Lock for 1.5 seconds after delay
       
       this.cooldowns.skill2 = 126;
     }
@@ -2199,7 +2342,7 @@ class Fighter {
       this.addEffect('curveForce', 0.12, 180);
       this.addEffect('speedBoost', 15, 180);
     } else if (this.shapeType === 'dodecahedron') {
-      // Transform: Perfect Adaptation Window (3 seconds)
+      // Transform: Perfect Adaptation Window (3 seconds) + Adaptive Attacks
       this.perfectAdaptation = true;
       this.perfectAdaptationDuration = 180; // 3 seconds
       
@@ -2207,6 +2350,10 @@ class Fighter {
       this.addEffect('massMultiplier', 1.5, 180);
       this.addEffect('speedBoost', 15, 180);
       this.addEffect('predictionBoost', 2, 180);
+      
+      // Adaptive Attacks: cycle forms automatically on each basic attack
+      this.adaptiveAttacks = true;
+      this.adaptiveAttackIndex = 0; // Start with Aggression (0)
       
       // Pause form cycle
       this.formTimer = this.formDuration; // Keep current form
@@ -2267,7 +2414,7 @@ class Fighter {
         side = 'bottom'; x = this.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
       }
 
-      this.construct = { side, x, y, length, startX, startY, duration: 120, empowered: this.slamWallEmpower };
+      this.construct = { side, x, y, length, startX, startY, duration: 180, empowered: this.slamWallEmpower };
       this.slamWallEmpower = false; // Consume empower
       this.cooldowns.skill3 = 150;
     }
@@ -2411,7 +2558,20 @@ class Fighter {
       case 'triangle':
         if (dist < 100 && speed > 5) { this.vx -= dx / dist * 0.5; this.vy -= dy / dist * 0.5; } break;
       case 'square':
-        if (avoidX !== 0 || avoidY !== 0) { this.vx -= avoidX * 0.2; this.vy -= avoidY * 0.2; } break;
+        if (avoidX !== 0 || avoidY !== 0) { this.vx -= avoidX * 0.2; this.vy -= avoidY * 0.2; }
+        // Push enemy toward spike wall if active
+        if (this.construct && this.target && this.target.hp > 0) {
+          const c = this.construct;
+          let pushX = 0, pushY = 0;
+          if (c.side === 'left') pushX = -1;
+          else if (c.side === 'right') pushX = 1;
+          else if (c.side === 'top') pushY = -1;
+          else if (c.side === 'bottom') pushY = 1;
+          // Bias movement toward the wall with spikes
+          this.vx += pushX * 0.5;
+          this.vy += pushY * 0.5;
+        }
+        break;
       case 'oval':
         if (speed < 6) { const a = Math.atan2(this.vy, this.vx); this.vx += Math.cos(a) * 0.3; this.vy += Math.sin(a) * 0.3; } break;
       case 'hexagon':
@@ -2842,35 +3002,42 @@ class Fighter {
         ctx.shadowColor = '#cc66ff';
         ctx.shadowBlur = 20;
         const vortexRadius = this.radius + 20 + Math.sin(Date.now() / 100) * 5;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, vortexRadius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
       } else if (effect.type === 'chaosZone') {
-        // Spiral Tornado: chaos zone aura
+        // Spiral Tornado: stable chaos zone visual
         ctx.save();
-        ctx.globalAlpha = 0.4;
+        const zoneRadius = effect.value ? effect.value.range : 120;
+        
+        // Stable outer boundary
+        ctx.globalAlpha = 0.5;
         ctx.strokeStyle = '#ff4444';
         ctx.lineWidth = 3;
         ctx.shadowColor = '#ff6666';
-        ctx.shadowBlur = 30;
-        const chaosRadius = this.radius + 30 + Math.sin(Date.now() / 80) * 8;
+        ctx.shadowBlur = 15;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, chaosRadius, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, zoneRadius, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.restore();
-      } else if (effect.type === 'gravitySlow') {
-        // Rhombus Heavy: gravity slow aura
-        ctx.save();
-        ctx.globalAlpha = 0.3;
-        ctx.strokeStyle = '#8844ff';
+        
+        // Controlled rotating inner rings
+        ctx.globalAlpha = 0.35;
         ctx.lineWidth = 2;
-        ctx.shadowColor = '#aa66ff';
-        ctx.shadowBlur = 20;
-        const slowRadius = this.radius + 15 + Math.sin(Date.now() / 100) * 5;
+        const rotation = Date.now() / 600; // Slower, more stable rotation
+        for (let i = 0; i < 3; i++) {
+          const ringRadius = zoneRadius * (0.3 + i * 0.25);
+          const ringRotation = rotation + i * (Math.PI * 2 / 3);
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, ringRadius, ringRotation, ringRotation + Math.PI);
+          ctx.stroke();
+        }
+        
+        // Center glow indicator
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#ff4444';
+        ctx.shadowColor = '#ff6666';
+        ctx.shadowBlur = 10;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, slowRadius, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        
         ctx.restore();
       } else if (effect.type === 'gravitySlam') {
         // Rhombus Impact: gravity slam detonation aura
