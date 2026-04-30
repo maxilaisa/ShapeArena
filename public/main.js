@@ -625,6 +625,17 @@ class Fighter {
           const wallSeekStrength = 0.3 * (1 + p.mobility / 20);
           this.vx -= avoidX * wallSeekStrength; // Move toward wall
           this.vy -= avoidY * wallSeekStrength;
+        } else {
+          // Fallback: if not near wall, move toward center to find a wall
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const centerDx = centerX - this.x;
+          const centerDy = centerY - this.y;
+          const centerDist = Math.sqrt(centerDx * centerDx + centerDy * centerDy);
+          if (centerDist > 0) {
+            this.vx += (centerDx / centerDist) * 0.2;
+            this.vy += (centerDy / centerDist) * 0.2;
+          }
         }
       } else if (this.bounceState === 'PLANNED') {
         // Increase aggression - attack immediately
@@ -650,9 +661,15 @@ class Fighter {
         }
         // Stabilization movement - reduce chaos, control correction
         const stabilizeStrength = 0.2;
-        // Reduce velocity slightly for control
+        // Reduce velocity slightly for control, but ensure minimum speed
         this.vx *= 0.95;
         this.vy *= 0.95;
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (currentSpeed < MIN_SPEED) {
+          const boost = MIN_SPEED / currentSpeed;
+          this.vx *= boost;
+          this.vy *= boost;
+        }
         // Add slight correction toward center
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
