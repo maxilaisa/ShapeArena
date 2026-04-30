@@ -4268,10 +4268,9 @@ function gameLoop() {
       ctx.fillText(`${window.koWinner.name} WINS!`, canvas.width/2, canvas.height/2 + 80);
     }
     if (koTimer >= KO_PAUSE_DURATION) {
-      const aliveFighters = fighters.filter(f => f.hp > 0);
       ctx.fillStyle = '#fff'; ctx.font = 'bold 48px Arial';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(aliveFighters.length === 1 ? `${aliveFighters[0].name} WINS!` : 'DRAW!', canvas.width/2, canvas.height/2);
+      ctx.fillText(window.koWinner ? `${window.koWinner.name} WINS!` : 'DRAW!', canvas.width/2, canvas.height/2);
       ctx.font = 'bold 24px Arial';
       ctx.fillText('Refresh to restart', canvas.width/2, canvas.height/2 + 50);
     }
