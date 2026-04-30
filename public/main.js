@@ -89,11 +89,16 @@ const GRAVITY = 0;
 const MIN_SPEED = 4;
 const DEFAULT_SPEED = 5;
 
-// ── Particle system ──────────────────────────────────────────────────────────
+// ── Particle system ───────────────────────────────────────────────────────────────
 const particles = [];
+const MAX_PARTICLES = 500; // Cap max particles to prevent lag
 
 function spawnParticles(x, y, color, count, opts = {}) {
-  for (let i = 0; i < count; i++) {
+  // Cap particle count
+  if (particles.length >= MAX_PARTICLES) return;
+  const actualCount = Math.min(count, MAX_PARTICLES - particles.length);
+  
+  for (let i = 0; i < actualCount; i++) {
     const angle = opts.angle !== undefined
       ? opts.angle + (Math.random() - 0.5) * (opts.spread || Math.PI * 2)
       : Math.random() * Math.PI * 2;
@@ -140,7 +145,7 @@ function updateAndDrawParticles() {
 
     if (p.glow) {
       ctx.shadowColor = p.color;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 6; // Reduced from 12
     }
 
     if (p.trail && p.trailPoints.length > 1) {
@@ -205,6 +210,145 @@ function updateAndDrawParticles() {
   }
 }
 
+// ── Soul drops (Spiral system) ────────────────────────────────────────────────
+const soulDrops = [];
+
+function spawnSoulDrop(x, y) {
+  soulDrops.push({ x, y, life: 180 }); // 3 seconds lifetime
+}
+
+// ── Wraith class (Spiral summon) ─────────────────────────────────────────────
+class Wraith {
+  constructor(owner, x, y) {
+    this.owner = owner;
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.radius = 20;
+    this.hp = 25; // 25% of normal unit HP (100 * 0.25)
+    this.maxHp = 25;
+    this.damage = 0.85; // 85% of normal hit damage multiplier
+    this.lifetime = 120; // 2 seconds
+    this.target = null;
+    this.attackCooldown = 0;
+    this.speed = 6;
+  }
+
+  update(fighters) {
+    this.lifetime--;
+    if (this.attackCooldown > 0) this.attackCooldown--;
+
+    // Find nearest enemy target
+    let nearestDist = Infinity;
+    this.target = null;
+    for (const f of fighters) {
+      if (f === this.owner || f.hp <= 0) continue;
+      const dx = f.x - this.x;
+      const dy = f.y - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        this.target = f;
+      }
+    }
+
+    // Aggressive movement toward target
+    if (this.target && this.target.hp > 0) {
+      const dx = this.target.x - this.x;
+      const dy = this.target.y - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 0) {
+        this.vx += (dx / dist) * 0.8;
+        this.vy += (dy / dist) * 0.8;
+      }
+    }
+
+    // Apply friction and speed cap
+    this.vx *= 0.95;
+    this.vy *= 0.95;
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (speed > this.speed) {
+      this.vx *= this.speed / speed;
+      this.vy *= this.speed / speed;
+    }
+    if (speed < 2) {
+      const angle = Math.random() * Math.PI * 2;
+      this.vx += Math.cos(angle) * 1;
+      this.vy += Math.sin(angle) * 1;
+    }
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    // Arena bounds
+    const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+    const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+    const arenaRight = arenaLeft + ARENA_SIZE;
+    const arenaBottom = arenaTop + ARENA_SIZE;
+    this.x = Math.max(arenaLeft + this.radius, Math.min(arenaRight - this.radius, this.x));
+    this.y = Math.max(arenaTop + this.radius, Math.min(arenaBottom - this.radius, this.y));
+
+    // Collision damage with enemies (like players)
+    if (this.target && this.attackCooldown <= 0) {
+      for (const f of fighters) {
+        if (f === this.owner || f.hp <= 0) continue;
+        const dx = f.x - this.x;
+        const dy = f.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < this.radius + f.radius && dist > 0) {
+          // Deal damage
+          const baseDmg = 5 * this.damage;
+          f.hp -= baseDmg;
+          f.hitFlash = 10;
+          f.lastAttacker = this.owner;
+          this.attackCooldown = 30;
+          // Knockback
+          const nx = dx / dist;
+          const ny = dy / dist;
+          f.vx += nx * 5;
+          f.vy += ny * 5;
+          this.vx -= nx * 3;
+          this.vy -= ny * 3;
+          spawnParticles(this.x, this.y, '#aa44ff', 6, {
+            minSpeed: 2, maxSpeed: 5, shape: 'circle', glow: true,
+            minDecay: 0.05, decayRange: 0.03
+          });
+        }
+      }
+    }
+  }
+
+  draw() {
+    ctx.save();
+    const alpha = Math.min(1, this.lifetime / 30); // Fade out in last 0.5s
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.fillStyle = '#8844cc';
+    ctx.shadowColor = '#aa66ff';
+    ctx.shadowBlur = 6; // Reduced from 12
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner glow
+    ctx.globalAlpha = alpha * 0.4;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // HP bar
+    ctx.globalAlpha = alpha * 0.8;
+    ctx.fillStyle = '#ff4444';
+    const barW = this.radius * 2;
+    const barH = 3;
+    ctx.fillRect(this.x - barW / 2, this.y - this.radius - 8, barW * (this.hp / this.maxHp), barH);
+    ctx.restore();
+  }
+
+  isAlive() {
+    return this.lifetime > 0 && this.hp > 0;
+  }
+}
+
 // ── Wall-bounce requirement system ───────────────────────────────────────────
 // After hitting another fighter, must bounce a wall before dealing damage again
 class Fighter {
@@ -237,7 +381,7 @@ class Fighter {
     this.forcedBounceDelay = 0; // Delay after forced bounce (15-25 frames)
     this.isForcedBounce = false; // Track if current wall hit is from external force
 
-    this.cooldowns = { skill1: 0, skill2: 0, ultimate: 0 };
+    this.cooldowns = { skill1: 0, skill2: 0, skill3: 0, ultimate: 0 };
     this.activeEffects = [];
     this.trail = [];
     this.hitFlash = 0;
@@ -278,6 +422,26 @@ class Fighter {
     // Crescent-specific: orbital zone for Eclipse ability
     this.orbitalZone = null;
     this.orbitalRadius = 150;
+
+    // Spiral-specific: Soul system
+    this.souls = 0;
+    this.maxSouls = 2;
+    this.passiveSoulTimer = 0;
+    this.passiveSoulInterval = 180; // 3 seconds
+    this.wraiths = []; // Active wraith summons
+    this.chaosFlailAngle = 0; // Rotating flail angle
+    this.chaosFlailCooldown = 0;
+
+    // Square-specific: Construct system
+    this.construct = null; // Active construct object
+    this.constructCooldown = 0;
+    this.constructCooldownMax = 300; // 5 seconds after destruction
+    this.slamWallEmpower = false; // Next construct empowered
+
+    // Hexagon-specific: Construct system
+    this.hexConstruct = null; // Active construct object
+    this.hexConstructCooldown = 0;
+    this.hexConstructCooldownMax = 300; // 5 seconds after destruction
 
     // Dodecahedron-specific: cycle system for forms
     this.forms = ['aggression', 'mobility', 'precision'];
@@ -512,9 +676,151 @@ class Fighter {
       }
     }
 
+    // Spiral-specific: Passive soul gain, soul collection, wraith updates, chaos flail
+    if (this.shapeType === 'spiral') {
+      // Passive soul: gain 1 soul every 180 frames if at 0 souls
+      if (this.souls === 0) {
+        this.passiveSoulTimer++;
+        if (this.passiveSoulTimer >= this.passiveSoulInterval) {
+          this.souls = Math.min(this.souls + 1, this.maxSouls);
+          this.passiveSoulTimer = 0;
+        }
+      } else {
+        this.passiveSoulTimer = 0;
+      }
+      // Collect nearby soul drops
+      for (let i = soulDrops.length - 1; i >= 0; i--) {
+        const soul = soulDrops[i];
+        const dx = soul.x - this.x;
+        const dy = soul.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < this.radius + 15) {
+          this.souls = Math.min(this.souls + 1, this.maxSouls);
+          spawnParticles(soul.x, soul.y, '#aa44ff', 8, {
+            minSpeed: 2, maxSpeed: 5, shape: 'circle', glow: true,
+            minDecay: 0.05, decayRange: 0.03
+          });
+          soulDrops.splice(i, 1);
+        }
+      }
+      // Update wraiths
+      this.wraiths = this.wraiths.filter(w => w.isAlive());
+      // Chaos Flail: rotating weapon attack
+      this.chaosFlailAngle += 0.15;
+      if (this.chaosFlailCooldown > 0) this.chaosFlailCooldown--;
+      if (this.chaosFlailCooldown <= 0) {
+        // Check flail hit on enemies
+        const flailRadius = this.radius + 25;
+        const flailAngleOffset = (Math.random() - 0.5) * 0.5;
+        const flailAngle = this.chaosFlailAngle + flailAngleOffset;
+        const flailX = this.x + Math.cos(flailAngle) * flailRadius;
+        const flailY = this.y + Math.sin(flailAngle) * flailRadius;
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        for (const f of fighters) {
+          if (f === this || f.hp <= 0) continue;
+          const dx = f.x - flailX;
+          const dy = f.y - flailY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < f.radius + 10) {
+            const dmg = 2 + speed * 0.2; // Small damage + speed scaling
+            f.hp -= dmg;
+            f.hitFlash = 5;
+            f.lastAttacker = this;
+            f.addEffect('chaosSpin', 1, 10); // Chaos Spin: slight movement distortion
+            spawnParticles(flailX, flailY, '#ff44ff', 4, {
+              minSpeed: 1, maxSpeed: 3, shape: 'circle', glow: true,
+              minDecay: 0.06, decayRange: 0.04
+            });
+          }
+        }
+        this.chaosFlailCooldown = 20; // 20 frames cooldown
+      }
+    }
+
+    // Square-specific: Construct cooldown update and Shield Bash
+    if (this.shapeType === 'square') {
+      if (this.construct) {
+        this.construct.duration--;
+        if (this.construct.duration <= 0) {
+          this.construct = null;
+          this.constructCooldown = this.constructCooldownMax;
+        }
+      }
+      if (this.constructCooldown > 0) this.constructCooldown--;
+      // Shield Bash: short cone knockback attack
+      this.shieldBashCooldown = (this.shieldBashCooldown || 0) - 1;
+      if (this.shieldBashCooldown <= 0) {
+        const bashRange = 80;
+        const bashAngle = Math.atan2(this.vy, this.vx);
+        for (const f of fighters) {
+          if (f === this || f.hp <= 0) continue;
+          const dx = f.x - this.x;
+          const dy = f.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < bashRange) {
+            const angleToEnemy = Math.atan2(dy, dx);
+            const angleDiff = Math.abs(angleToEnemy - bashAngle);
+            if (angleDiff < Math.PI / 3) { // 60 degree cone
+              // Low damage, strong push
+              f.hp -= 3;
+              f.hitFlash = 5;
+              f.lastAttacker = this;
+              const pushForce = 8;
+              f.vx += Math.cos(angleToEnemy) * pushForce;
+              f.vy += Math.sin(angleToEnemy) * pushForce;
+              // Bonus knockback if enemy hits wall (handled in collision)
+              spawnParticles(f.x, f.y, '#8866ff', 5, {
+                minSpeed: 2, maxSpeed: 5, shape: 'circle', glow: true,
+                minDecay: 0.05, decayRange: 0.03
+              });
+            }
+          }
+        }
+        this.shieldBashCooldown = 30; // 0.5 seconds
+      }
+    }
+
+    // Hexagon-specific: Construct cooldown update and Orbit Strike
+    if (this.shapeType === 'hexagon') {
+      if (this.hexConstruct) {
+        this.hexConstruct.duration--;
+        if (this.hexConstruct.duration <= 0) {
+          this.hexConstruct = null;
+          this.hexConstructCooldown = this.hexConstructCooldownMax;
+        }
+      }
+      if (this.hexConstructCooldown > 0) this.hexConstructCooldown--;
+      // Orbit Strike: orbital projectile with slow and slight homing
+      this.orbitStrikeCooldown = (this.orbitStrikeCooldown || 0) - 1;
+      if (this.orbitStrikeCooldown <= 0) {
+        const strikeRadius = this.radius + 40;
+        const strikeAngle = (Date.now() / 300) % (Math.PI * 2);
+        const strikeX = this.x + Math.cos(strikeAngle) * strikeRadius;
+        const strikeY = this.y + Math.sin(strikeAngle) * strikeRadius;
+        for (const f of fighters) {
+          if (f === this || f.hp <= 0) continue;
+          const dx = f.x - strikeX;
+          const dy = f.y - strikeY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 15) {
+            // Apply slow
+            f.addEffect('slow', 0.3, 30); // 30% slow for 0.5 seconds
+            f.hitFlash = 5;
+            f.lastAttacker = this;
+            spawnParticles(strikeX, strikeY, '#33ff88', 4, {
+              minSpeed: 1, maxSpeed: 3, shape: 'circle', glow: true,
+              minDecay: 0.05, decayRange: 0.03
+            });
+          }
+        }
+        this.orbitStrikeCooldown = 25; // 0.4 seconds
+      }
+    }
+
     this.updateActiveEffects();
     if (this.cooldowns.skill1 > 0) this.cooldowns.skill1--;
     if (this.cooldowns.skill2 > 0) this.cooldowns.skill2--;
+    if (this.cooldowns.skill3 > 0) this.cooldowns.skill3--;
     if (this.cooldowns.ultimate > 0) this.cooldowns.ultimate--;
     if (this.abilityFlash > 0) this.abilityFlash--;
     if (this.wallBounceFlash > 0) this.wallBounceFlash--;
@@ -862,6 +1168,71 @@ class Fighter {
           });
           playSound('square_slam_shockwave');
         }
+      } else if (effect.type === 'shieldShockwaves') {
+        // Shield shockwaves: mini shockwaves on basic attacks (handled in collision)
+      } else if (effect.type === 'wallPush') {
+        // Wall push: pushes enemies toward walls (handled in collision)
+      } else if (effect.type === 'bleed') {
+        // Bleed: damage over time
+        if (this.hp > 0) this.hp -= effect.value;
+      } else if (effect.type === 'slowFieldTrail') {
+        // Slow field trail: leaves slow field behind (handled in collision)
+      } else if (effect.type === 'burstField') {
+        // Burst field: allies gain minor regen inside field, enemies in slime further slowed
+        const fieldRange = 150;
+        for (const f of fighters) {
+          if (f === this || f.hp <= 0) continue;
+          const dx = f.x - this.x;
+          const dy = f.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < fieldRange) {
+            // Ally regen (same team or just not enemy - in FFA, all are enemies, so no regen)
+            // In FFA mode, burst field only affects the caster
+            // Enemies in slime further slowed
+            if (f.shapeType === 'hexagon' && f.hexConstruct) {
+              const c = f.hexConstruct;
+              const slimeDist = Math.sqrt((f.x - c.x) ** 2 + (f.y - c.y) ** 2);
+              if (slimeDist < c.radius) {
+                // Further slow enemies in slime
+                f.addEffect('slow', 0.3, 10); // Additional 30% slow
+              }
+            }
+          }
+        }
+        // Self regen
+        if (this.hp < this.maxHp) {
+          this.hp = Math.min(this.maxHp, this.hp + 0.2); // Minor regen
+        }
+      } else if (effect.type === 'shieldPulseBurst') {
+        // Shield pulse burst: track shield, create pulse when shield breaks
+        if (this.shield > 0 && !effect._shieldTracked) {
+          effect._shieldTracked = true;
+          effect._shieldAmount = this.shield;
+        }
+        if (effect._shieldTracked && this.shield === 0 && effect._shieldAmount > 0) {
+          // Shield broken, create pulse burst
+          const pulseRange = 100;
+          const pulseForce = 6;
+          for (const f of fighters) {
+            if (f === this || f.hp <= 0) continue;
+            const dx = f.x - this.x;
+            const dy = f.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < pulseRange && dist > 0) {
+              f.vx += (dx / dist) * pulseForce;
+              f.vy += (dy / dist) * pulseForce;
+              f.hp -= 5; // Pulse damage
+              f.hitFlash = 10;
+              f.lastAttacker = this;
+            }
+          }
+          spawnParticles(this.x, this.y, '#33ff88', 20, {
+            minSpeed: 3, maxSpeed: 8, shape: 'ring', glow: true,
+            minDecay: 0.03, decayRange: 0.02
+          });
+          effect._shieldTracked = false;
+          effect._shieldAmount = 0;
+        }
       } else if (effect.type === 'quakePulse') {
         // Quake pulse: area knockback every 0.5s (30 frames)
         if (effect.duration % 30 === 0) {
@@ -912,6 +1283,14 @@ class Fighter {
         // Chaos zone: moving chaos zone that follows
         // This effect doesn't modify velocity directly
         // The actual chaos is handled in the collision logic
+      } else if (effect.type === 'unstableMark') {
+        // Unstable Mark: enemy movement becomes slightly erratic
+        const angle = Math.random() * Math.PI * 2;
+        this.vx += Math.cos(angle) * 0.5;
+        this.vy += Math.sin(angle) * 0.5;
+      } else if (effect.type === 'chaosResidue') {
+        // Chaos Residue: distorts movement of enemies inside the residue area
+        // The actual effect is handled in the collision logic
       } else if (effect.type === 'gravitySlow') {
         // Gravity slow: slows enemies being pulled
         // This effect doesn't modify velocity directly
@@ -956,6 +1335,10 @@ class Fighter {
   addEffect(type, value, duration) {
     this.activeEffects.push({ type, value, duration });
     this.abilityFlash = 10;
+    // Track Unstable Mark for soul drop on death
+    if (type === 'unstableMark') {
+      this._hadUnstableMark = true;
+    }
   }
 
   // ── Skill visuals ─────────────────────────────────────────────────────────
@@ -1120,6 +1503,16 @@ class Fighter {
           spawnParticles(x, y, '#ff44ff', 15, {
             minSpeed: 2, maxSpeed: 6, shape: 'ring', glow: true,
             minDecay: 0.04, decayRange: 0.03
+          });
+        } else if (skillKey === 'skill3') {
+          // Summon Wraith: purple burst
+          spawnParticles(x, y, '#aa44ff', 20, {
+            minSpeed: 3, maxSpeed: 8, shape: 'circle', glow: true,
+            minDecay: 0.04, decayRange: 0.03
+          });
+          spawnParticles(x, y, '#ffffff', 10, {
+            minSpeed: 2, maxSpeed: 5, shape: 'ring', glow: true,
+            minDecay: 0.05, decayRange: 0.03
           });
         } else {
           // Tornado ultimate: huge chaotic spiral
@@ -1412,6 +1805,7 @@ class Fighter {
       playSound('triangle_pierce');
     } else if (this.shapeType === 'square') {
       this.addEffect('damageReduction', 0.5, 120); // 50% damage reduction for 2 seconds
+      this.addEffect('shieldShockwaves', 1, 120); // Mini shockwaves on basic attacks
       this.cooldowns.skill1 = 150;
       playSound('square_shield');
     } else if (this.shapeType === 'oval') {
@@ -1423,7 +1817,7 @@ class Fighter {
       }
       this.cooldowns.skill1 = 120;
     } else if (this.shapeType === 'hexagon') {
-      // Orbit: precision strike that applies slow to enemy
+      // Orbit: precision strike that applies slow to enemy + leaves slow field trail
       if (this.target) {
         const dx = this.target.x - this.x;
         const dy = this.target.y - this.y;
@@ -1435,15 +1829,25 @@ class Fighter {
           this.target.addEffect('slow', 0.5, 90); // 50% speed reduction for 1.5 seconds
         }
       }
+      this.addEffect('slowFieldTrail', 1, 40); // Slow field trail for 40 frames
       this.cooldowns.skill1 = 130;
     } else if (this.shapeType === 'spiral') {
-      // Vortex: pulls enemies slightly toward random direction
+      // Vortex: creates pull at impact point, applies Unstable Mark
       const pullAngle = Math.random() * Math.PI * 2;
       const pullForce = 5;
       this.vx += Math.cos(pullAngle) * 8; this.vy += Math.sin(pullAngle) * 8;
       this.addEffect('chaosSpin', 2, 30);
-      // Store pull data for effect processing
       this.addEffect('vortexPull', { angle: pullAngle, force: pullForce }, 60);
+      // Apply Unstable Mark to nearby enemies
+      const vortexRange = 150;
+      for (const f of fighters) {
+        if (f === this || f.hp <= 0) continue;
+        const dx = f.x - this.x; const dy = f.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < vortexRange) {
+          f.addEffect('unstableMark', 1, 40); // 40 frames
+        }
+      }
       this.cooldowns.skill1 = 90;
     } else if (this.shapeType === 'rhombus') {
       // Heavy: stronger pull + slow effect
@@ -1573,6 +1977,17 @@ class Fighter {
       playSound('triangle_charge');
     } else if (this.shapeType === 'square') {
       this.addEffect('slamShockwave', 1, 60); // Slam effect for 1 second
+      // Check if near wall to empower next construct
+      const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+      const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+      const arenaRight = arenaLeft + ARENA_SIZE;
+      const arenaBottom = arenaTop + ARENA_SIZE;
+      const wallThreshold = 100;
+      const nearWall = this.x < arenaLeft + wallThreshold || this.x > arenaRight - wallThreshold ||
+                        this.y < arenaTop + wallThreshold || this.y > arenaBottom - wallThreshold;
+      if (nearWall) {
+        this.slamWallEmpower = true; // Next construct empowered
+      }
       this.cooldowns.skill2 = 120;
       playSound('square_slam');
     } else if (this.shapeType === 'oval') {
@@ -1586,12 +2001,14 @@ class Fighter {
       }
       this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'hexagon') {
-      // Hex: converts damage taken into temporary shield
+      // Hex: converts damage taken into temporary shield + excess shield converts to pulse burst when broken
       this.addEffect('shieldConversion', 0.5, 120); // 50% damage conversion to shield for 2 seconds
+      this.addEffect('shieldPulseBurst', 1, 120); // Track shield for pulse burst on break
       this.cooldowns.skill2 = 110;
     } else if (this.shapeType === 'spiral') {
-      // Curve: multi-blink (2 small teleports)
+      // Curve: double blink + leaves Chaos Residue
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      const firstX = this.x, firstY = this.y;
       if (speed > 0) {
         const angle = Math.atan2(this.vy, this.vx);
         // First blink
@@ -1600,6 +2017,8 @@ class Fighter {
         const offsetAngle = angle + (Math.random() - 0.5) * Math.PI;
         this.x += Math.cos(offsetAngle) * 30; this.y += Math.sin(offsetAngle) * 30;
       }
+      // Leave Chaos Residue at first blink position
+      this.addEffect('chaosResidue', { x: firstX, y: firstY }, 60); // 60 frames
       this.cooldowns.skill2 = 130;
     } else if (this.shapeType === 'rhombus') {
       // Boost: gains bonus speed toward pulled enemies
@@ -1709,19 +2128,40 @@ class Fighter {
       playSound('triangle_spike_start');
     } else if (this.shapeType === 'square') {
       this.addEffect('quakePulse', 1, 180); // Area knockback pulse for 3 seconds
+      // Enhanced: pulses push enemies toward walls
+      this.addEffect('wallPush', 1, 180);
       playSound('square_quake_start');
     } else if (this.shapeType === 'oval') {
       // Phase: leaves ghost trail that damages enemies
       this.addEffect('ghostTrail', 1, 180); // Ghost trail for 3 seconds
       this.vx *= 1.5; this.vy *= 1.5;
     } else if (this.shapeType === 'hexagon') {
-      // Burst: emits protective field reducing knockback
+      // Burst: emits protective field reducing knockback + double construct duration + ally regen + slime slow boost
       this.addEffect('knockbackResistance', 0.7, 180); // 70% knockback reduction for 3 seconds
+      this.addEffect('burstField', 1, 180); // Burst field for ally regen and slime slow boost
       this.vx *= 0.3; this.vy *= 0.3;
+      // Double construct duration if active
+      if (this.hexConstruct) {
+        this.hexConstruct.duration *= 2;
+      }
     } else if (this.shapeType === 'spiral') {
-      // Tornado: creates moving chaos zone that follows you
+      // Tornado: creates moving chaos zone + auto-summon wraiths from souls
       this.addEffect('chaosZone', { range: 120, force: 3 }, 180); // Chaos zone for 3 seconds
       this.addEffect('speedBoost', 25, 180);
+      // Auto-consume souls to summon wraiths (max 2 active)
+      while (this.souls > 0 && this.wraiths.length < 2) {
+        const wraithX = this.x + (Math.random() - 0.5) * 40;
+        const wraithY = this.y + (Math.random() - 0.5) * 40;
+        const wraith = new Wraith(this, wraithX, wraithY);
+        // Wraiths inside tornado gain +20% speed
+        wraith.speed = 6 * 1.2;
+        this.wraiths.push(wraith);
+        this.souls--;
+        spawnParticles(wraithX, wraithY, '#aa44ff', 10, {
+          minSpeed: 2, maxSpeed: 6, shape: 'circle', glow: true,
+          minDecay: 0.04, decayRange: 0.03
+        });
+      }
     } else if (this.shapeType === 'rhombus') {
       // Impact: converts attraction into slam detonation
       this.addEffect('gravitySlam', { range: 150, damage: 15, knockback: 12 }, 120); // Gravity slam for 2 seconds
@@ -1777,6 +2217,77 @@ class Fighter {
     }
     this.ultimateCharge = 0;
     this.cooldowns.ultimate = 300;
+  }
+
+  useSkill3() {
+    // Spiral-only: Summon Wraith (costs 1 Soul)
+    if (this.shapeType === 'spiral') {
+      if (this.souls < 1) return;
+      if (this.wraiths.length >= 2) return; // Max 2 wraiths
+      if (this.cooldowns.skill3 > 0) return;
+
+      this.triggerSkillVFX('skill3');
+      this.souls--;
+      const wraithX = this.x + (Math.random() - 0.5) * 30;
+      const wraithY = this.y + (Math.random() - 0.5) * 30;
+      this.wraiths.push(new Wraith(this, wraithX, wraithY));
+      spawnParticles(wraithX, wraithY, '#aa44ff', 12, {
+        minSpeed: 2, maxSpeed: 6, shape: 'circle', glow: true,
+        minDecay: 0.04, decayRange: 0.03
+      });
+      this.cooldowns.skill3 = 120; // 2 seconds
+    }
+    // Square-only: Spike Wall construct
+    else if (this.shapeType === 'square') {
+      if (this.construct) return; // Max 1 construct
+      if (this.constructCooldown > 0) return;
+      if (this.cooldowns.skill3 > 0) return;
+
+      this.triggerSkillVFX('skill3');
+      const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+      const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+      const arenaRight = arenaLeft + ARENA_SIZE;
+      const arenaBottom = arenaTop + ARENA_SIZE;
+
+      // Determine nearest wall
+      const distLeft = this.x - arenaLeft;
+      const distRight = arenaRight - this.x;
+      const distTop = this.y - arenaTop;
+      const distBottom = arenaBottom - this.y;
+      const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+
+      let side, x, y, length, startX, startY;
+      if (minDist === distLeft) {
+        side = 'left'; x = arenaLeft; y = this.y; length = 150; startX = x; startY = y - length / 2;
+      } else if (minDist === distRight) {
+        side = 'right'; x = arenaRight; y = this.y; length = 150; startX = x; startY = y - length / 2;
+      } else if (minDist === distTop) {
+        side = 'top'; x = this.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
+      } else {
+        side = 'bottom'; x = this.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
+      }
+
+      this.construct = { side, x, y, length, startX, startY, duration: 120, empowered: this.slamWallEmpower };
+      this.slamWallEmpower = false; // Consume empower
+      this.cooldowns.skill3 = 150;
+    }
+    // Hexagon-only: Slime Field construct
+    else if (this.shapeType === 'hexagon') {
+      if (this.hexConstruct) return; // Max 1 construct
+      if (this.hexConstructCooldown > 0) return;
+      if (this.cooldowns.skill3 > 0) return;
+
+      this.triggerSkillVFX('skill3');
+      this.hexConstruct = {
+        x: this.x,
+        y: this.y,
+        radius: 80,
+        duration: 120,
+        slowAmount: 0.5,
+        accelReduction: 0.6
+      };
+      this.cooldowns.skill3 = 140;
+    }
   }
 
   makeAbilityDecision(distToTarget, arenaLeft, arenaRight, arenaTop, arenaBottom) {
@@ -1873,6 +2384,22 @@ class Fighter {
       else if (this.shapeType === 'triangle' && distToTarget < 100 * (1 + p.greed / 10) * adjustedThreshold) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
       else if (this.shapeType === 'square' && speed > 6 * (1 - p.fear / 20) * speedThreshold) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
       else if (['oval','hexagon','spiral','rhombus','star','heart','diamond','crescent','dodecahedron'].includes(this.shapeType)) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+    }
+
+    // Skill3 usage for reworked characters
+    if (this.cooldowns.skill3 === 0 && rand < baseChance * 0.7) {
+      if (this.shapeType === 'spiral') {
+        // Summon Wraith: use when have souls and need extra damage
+        if (this.souls > 0 && this.wraiths.length < 2 && distToTarget < 150) this.useSkill3();
+      } else if (this.shapeType === 'square') {
+        // Spike Wall: use when near wall and construct available
+        const nearWall = this.x < arenaLeft + 100 || this.x > arenaRight - 100 ||
+                          this.y < arenaTop + 100 || this.y > arenaBottom - 100;
+        if (nearWall && !this.construct && this.constructCooldown === 0) this.useSkill3();
+      } else if (this.shapeType === 'hexagon') {
+        // Slime Field: use when construct available and enemies nearby
+        if (!this.hexConstruct && this.hexConstructCooldown === 0 && distToTarget < 200) this.useSkill3();
+      }
     }
   }
 
@@ -2669,24 +3196,57 @@ class Fighter {
       ctx.restore();
     }
 
-    // Spiral Chaos Orb weapon (drawn on top)
+    // Spiral Chaos Spinner weapon (drawn on top)
     if (this.shapeType === 'spiral') {
       ctx.save();
       
       const chaosZoneEffect = this.activeEffects.find(e => e.type === 'chaosZone');
       const isTornadoActive = chaosZoneEffect !== undefined;
       
-      const orbRadius = this.radius * 0.8;
-      const spikeCount = 5; // Reduced from 8 to 5
-      const instability = isTornadoActive ? 0.3 : 0.15;
+      // Draw Chaos Flail (rotating weapon)
+      const flailRadius = this.radius + 25;
+      const flailAngle = this.chaosFlailAngle;
+      const flailX = this.x + Math.cos(flailAngle) * flailRadius;
+      const flailY = this.y + Math.sin(flailAngle) * flailRadius;
       
-      // Draw unstable sphere with random spikes
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = 0.8;
+      ctx.strokeStyle = '#ff44ff';
+      ctx.lineWidth = 4;
+      ctx.shadowColor = '#cc66ff';
+      ctx.shadowBlur = 6; // Reduced from 10
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(flailX, flailY);
+      ctx.stroke();
+      
+      // Flail head
+      ctx.fillStyle = '#ff44ff';
+      ctx.beginPath();
+      ctx.arc(flailX, flailY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Soul count indicator (small orbs around body)
+      for (let i = 0; i < this.souls; i++) {
+        const soulAngle = (Date.now() / 500) + (i * Math.PI * 2 / this.maxSouls);
+        const soulX = this.x + Math.cos(soulAngle) * (this.radius + 12);
+        const soulY = this.y + Math.sin(soulAngle) * (this.radius + 12);
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = '#aa44ff';
+        ctx.shadowColor = '#cc66ff';
+        ctx.shadowBlur = 5; // Reduced from 8
+        ctx.beginPath();
+        ctx.arc(soulX, soulY, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Main orb body (reduced to core)
+      const orbRadius = this.radius * 0.5;
+      const spikeCount = 3; // Reduced spikes
+      const instability = isTornadoActive ? 0.3 : 0.15;
+      ctx.globalAlpha = 0.6;
       ctx.fillStyle = isTornadoActive ? '#ff4444' : '#aa44ff';
       ctx.shadowColor = isTornadoActive ? '#ff6666' : '#cc66ff';
-      ctx.shadowBlur = isTornadoActive ? 20 : 10; // Reduced glow
-      
-      // Main orb body
+      ctx.shadowBlur = isTornadoActive ? 10 : 5; // Reduced from 15/8
       ctx.beginPath();
       ctx.arc(this.x, this.y, orbRadius, 0, Math.PI * 2);
       ctx.fill();
@@ -3721,6 +4281,106 @@ function handleCollisions(fighters) {
         }
       }
     }
+    // Chaos Residue: distorts movement of enemies inside residue area
+    const chaosResidueEffect = f1.activeEffects.find(e => e.type === 'chaosResidue');
+    if (chaosResidueEffect && chaosResidueEffect.value) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - chaosResidueEffect.value.x;
+        const dy = f2.y - chaosResidueEffect.value.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 60) { // Residue radius
+          // Slight movement distortion
+          const distortAngle = Math.random() * Math.PI * 2;
+          f2.vx += Math.cos(distortAngle) * 0.8;
+          f2.vy += Math.sin(distortAngle) * 0.8;
+        }
+      }
+    }
+    // Soul drop: enemies with Unstable Mark drop a soul when they die
+    for (let j = 0; j < fighters.length; j++) {
+      if (i === j) continue;
+      const f2 = fighters[j];
+      if (f2.hp <= 0 && f2._hadUnstableMark) {
+        spawnSoulDrop(f2.x, f2.y);
+        f2._hadUnstableMark = false;
+      }
+    }
+    // Wall Push: Quake Pulse pushes enemies toward walls
+    const wallPushEffect = f1.activeEffects.find(e => e.type === 'wallPush');
+    if (wallPushEffect) {
+      const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+      const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+      const arenaRight = arenaLeft + ARENA_SIZE;
+      const arenaBottom = arenaTop + ARENA_SIZE;
+      const centerX = arenaLeft + ARENA_SIZE / 2;
+      const centerY = arenaTop + ARENA_SIZE / 2;
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - centerX;
+        const dy = f2.y - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+          // Push away from center toward walls
+          f2.vx += (dx / dist) * 2;
+          f2.vy += (dy / dist) * 2;
+        }
+      }
+    }
+    // Spike Wall: bonus damage + bleed when enemy hits wall
+    if (f1.shapeType === 'square' && f1.construct) {
+      const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+      const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+      const arenaRight = arenaLeft + ARENA_SIZE;
+      const arenaBottom = arenaTop + ARENA_SIZE;
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        // Check if f2 is near the wall where spike wall is
+        const c = f1.construct;
+        let nearSpikeWall = false;
+        if (c.side === 'left' && f2.x < arenaLeft + 30 && Math.abs(f2.y - c.y) < c.length / 2) nearSpikeWall = true;
+        else if (c.side === 'right' && f2.x > arenaRight - 30 && Math.abs(f2.y - c.y) < c.length / 2) nearSpikeWall = true;
+        else if (c.side === 'top' && f2.y < arenaTop + 30 && Math.abs(f2.x - c.x) < c.length / 2) nearSpikeWall = true;
+        else if (c.side === 'bottom' && f2.y > arenaBottom - 30 && Math.abs(f2.x - c.x) < c.length / 2) nearSpikeWall = true;
+        if (nearSpikeWall) {
+          const bonusDmg = c.empowered ? 8 : 5;
+          f2.hp -= bonusDmg;
+          f2.hitFlash = 10;
+          f2.lastAttacker = f1;
+          // Apply bleed (damage over time)
+          f2.addEffect('bleed', 1, 60); // 1 damage per frame for 60 frames
+          spawnParticles(f2.x, f2.y, '#ff4444', 8, {
+            minSpeed: 2, maxSpeed: 5, shape: 'circle', glow: true,
+            minDecay: 0.05, decayRange: 0.03
+          });
+        }
+      }
+    }
+    // Slime Field: slow + acceleration reduction for enemies inside
+    if (f1.shapeType === 'hexagon' && f1.hexConstruct) {
+      const c = f1.hexConstruct;
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - c.x;
+        const dy = f2.y - c.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < c.radius) {
+          // Apply slow
+          f2.addEffect('slow', c.slowAmount, 10); // Reapply every frame
+          // Reduce acceleration
+          f2.vx *= (1 - c.accelReduction * 0.1);
+          f2.vy *= (1 - c.accelReduction * 0.1);
+        }
+      }
+    }
     // Gravity Slam: converts attraction into slam detonation
     const gravitySlamEffect = f1.activeEffects.find(e => e.type === 'gravitySlam');
     if (gravitySlamEffect && gravitySlamEffect.value) {
@@ -4416,6 +5076,30 @@ function gameLoop() {
         ctx.fillText('Refresh to restart', canvas.width/2, canvas.height/2 + 50);
       }
     } else {
+      // Soul drop: any enemy dying drops 1 Soul
+      for (const f of fighters) {
+        if (f.hp <= 0 && !f._soulDropped) {
+          f._soulDropped = true;
+          spawnSoulDrop(f.x, f.y);
+          // Unstable Mark: guaranteed soul drop (already tracked, extra soul)
+          if (f._hadUnstableMark) {
+            spawnSoulDrop(f.x + (Math.random()-0.5)*20, f.y + (Math.random()-0.5)*20);
+          }
+        }
+      }
+      // Update soul drops lifetime
+      for (let i = soulDrops.length - 1; i >= 0; i--) {
+        soulDrops[i].life--;
+        if (soulDrops[i].life <= 0) soulDrops.splice(i, 1);
+      }
+      // Update wraiths
+      for (const f of fighters) {
+        if (f.shapeType === 'spiral' && f.hp > 0) {
+          for (const w of f.wraiths) {
+            w.update(fighters);
+          }
+        }
+      }
       if (hitPauseTimer > 0) {
         hitPauseTimer--;
         if (hitPauseTimer % 2 === 0) {
@@ -4433,6 +5117,93 @@ function gameLoop() {
           fighter.update(fighters);
           fighter.draw();
         }}
+      }
+      // Draw soul drops
+      for (const soul of soulDrops) {
+        const alpha = Math.min(1, soul.life / 30);
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.fillStyle = '#aa44ff';
+        ctx.shadowColor = '#cc66ff';
+        ctx.shadowBlur = 5; // Reduced from 10
+        ctx.beginPath();
+        ctx.arc(soul.x, soul.y, 8 + Math.sin(Date.now() / 100) * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = alpha * 0.5;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(soul.x, soul.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // Draw wraiths
+      for (const f of fighters) {
+        if (f.shapeType === 'spiral') {
+          for (const w of f.wraiths) {
+            w.draw();
+          }
+        }
+      }
+      // Draw Square constructs (Spike Wall)
+      for (const f of fighters) {
+        if (f.shapeType === 'square' && f.construct) {
+          const c = f.construct;
+          const alpha = Math.min(1, c.duration / 30);
+          ctx.save();
+          ctx.globalAlpha = alpha * 0.7;
+          ctx.strokeStyle = '#ff4444';
+          ctx.lineWidth = 4;
+          ctx.shadowColor = '#ff6666';
+          ctx.shadowBlur = 6; // Reduced from 12
+          // Draw spikes on wall
+          const wallX = c.side === 'left' ? c.x : c.side === 'right' ? c.x : c.x;
+          const wallY = c.side === 'top' ? c.y : c.side === 'bottom' ? c.y : c.y;
+          const spikeCount = 6;
+          if (c.side === 'left' || c.side === 'right') {
+            for (let i = 0; i < spikeCount; i++) {
+              const sy = c.startY + (i + 0.5) * (c.length / spikeCount);
+              const dir = c.side === 'left' ? 1 : -1;
+              ctx.beginPath();
+              ctx.moveTo(c.x, sy - 8);
+              ctx.lineTo(c.x + dir * 15, sy);
+              ctx.lineTo(c.x, sy + 8);
+              ctx.closePath();
+              ctx.stroke();
+            }
+          } else {
+            for (let i = 0; i < spikeCount; i++) {
+              const sx = c.startX + (i + 0.5) * (c.length / spikeCount);
+              const dir = c.side === 'top' ? 1 : -1;
+              ctx.beginPath();
+              ctx.moveTo(sx - 8, c.y);
+              ctx.lineTo(sx, c.y + dir * 15);
+              ctx.lineTo(sx + 8, c.y);
+              ctx.closePath();
+              ctx.stroke();
+            }
+          }
+          ctx.restore();
+        }
+        // Draw Hexagon constructs (Slime Field)
+        if (f.shapeType === 'hexagon' && f.hexConstruct) {
+          const c = f.hexConstruct;
+          const alpha = Math.min(1, c.duration / 30);
+          ctx.save();
+          ctx.globalAlpha = alpha * 0.3;
+          ctx.fillStyle = '#33ff88';
+          ctx.shadowColor = '#33ff88';
+          ctx.shadowBlur = 6; // Reduced from 12
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = alpha * 0.5;
+          ctx.strokeStyle = '#33ff88';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
       }
       updateAndDrawParticles();
     }
@@ -4576,10 +5347,10 @@ function getSkillNames(shapeType) {
   const skillNames = {
     circle:       { skill1:'Dash',    skill2:'Spin',    ultimate:'Meteor'    },
     triangle:     { skill1:'Pierce',  skill2:'Charge',  ultimate:'Spike'     },
-    square:       { skill1:'Shield',  skill2:'Slam',    ultimate:'Quake'     },
+    square:       { skill1:'Shield',  skill2:'Slam',    skill3:'Spike Wall', ultimate:'Quake'     },
     oval:         { skill1:'Speed',   skill2:'Drift',   ultimate:'Phase'     },
-    hexagon:      { skill1:'Orbit',   skill2:'Hex',     ultimate:'Burst'     },
-    spiral:       { skill1:'Vortex',  skill2:'Curve',   ultimate:'Tornado'   },
+    hexagon:      { skill1:'Orbit',   skill2:'Hex',     skill3:'Slime Field', ultimate:'Burst'     },
+    spiral:       { skill1:'Vortex',  skill2:'Curve',   skill3:'Summon Wraith', ultimate:'Tornado'   },
     rhombus:      { skill1:'Heavy',   skill2:'Boost',   ultimate:'Impact'    },
     star:         { skill1:'Burst',   skill2:'Beam',    ultimate:'Nova'      },
     heart:        { skill1:'Heal',    skill2:'Pulse',   ultimate:'Love'      },
@@ -4587,7 +5358,7 @@ function getSkillNames(shapeType) {
     crescent:     { skill1:'Slice',   skill2:'Moon',    ultimate:'Eclipse'   },
     dodecahedron: { skill1:'Adapt',   skill2:'Face',    ultimate:'Transform' }
   };
-  return skillNames[shapeType] || { skill1:'Skill 1', skill2:'Skill 2', ultimate:'Ult' };
+  return skillNames[shapeType] || { skill1:'Skill 1', skill2:'Skill 2', skill3:'Skill 3', ultimate:'Ult' };
 }
 
 gameLoop();
