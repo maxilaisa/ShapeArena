@@ -80,9 +80,6 @@ let hitPauseTimer = 0;
 const HIT_PAUSE_DURATION = 8;
 let screenShake = { x: 0, y: 0, intensity: 0 };
 
-const REPLAY_DURATION = 180;
-let replayBuffer = [];
-let replayIndex = 0;
 let koTimer = 0;
 const KO_PAUSE_DURATION = 120;
 
@@ -3932,7 +3929,6 @@ function getArenaBounds() {
 
 function spawnFighters() {
   fighters.length = 0;
-  replayBuffer = [];
   particles.length = 0;
   const selectedConfigs = fighterConfigs.filter(c => selectedFighters.has(c.id));
   const { arenaLeft, arenaTop } = getArenaBounds();
@@ -3945,15 +3941,6 @@ function spawnFighters() {
     const y = centerY + Math.sin(angle) * radius;
     fighters.push(new Fighter(config.id, x, y, config.color, config.name, config.shapeType));
   });
-}
-
-function recordState() {
-  const state = fighters.map(f => ({
-    x: f.x, y: f.y, vx: f.vx, vy: f.vy, hp: f.hp,
-    hitFlash: f.hitFlash, trail: f.trail.filter(t => isFinite(t.x) && isFinite(t.y))
-  }));
-  replayBuffer.push(state);
-  if (replayBuffer.length > REPLAY_DURATION) replayBuffer.shift();
 }
 
 function triggerKO(winner) {
@@ -4280,20 +4267,7 @@ function gameLoop() {
       ctx.fillStyle = '#fff'; ctx.font = 'bold 48px Arial';
       ctx.fillText(`${window.koWinner.name} WINS!`, canvas.width/2, canvas.height/2 + 80);
     }
-    if (koTimer >= KO_PAUSE_DURATION) { introState = 'replay'; replayIndex = 0; }
-  } else if (introState === 'replay') {
-    if (replayIndex < replayBuffer.length) {
-      const state = replayBuffer[replayIndex];
-      for (let i = 0; i < fighters.length && i < state.length; i++) {
-        fighters[i].x = state[i].x; fighters[i].y = state[i].y;
-        fighters[i].hp = state[i].hp; fighters[i].hitFlash = state[i].hitFlash;
-        fighters[i].trail = state[i].trail; fighters[i].draw();
-      }
-      ctx.fillStyle = '#ffff00'; ctx.font = 'bold 24px Arial';
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillText('▶ REPLAY', arenaLeft + 10, arenaTop + 10);
-      replayIndex++;
-    } else {
+    if (koTimer >= KO_PAUSE_DURATION) {
       const aliveFighters = fighters.filter(f => f.hp > 0);
       ctx.fillStyle = '#fff'; ctx.font = 'bold 48px Arial';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -4315,7 +4289,6 @@ function gameLoop() {
         ctx.fillText('Refresh to restart', canvas.width/2, canvas.height/2 + 50);
       }
     } else {
-      recordState();
       if (hitPauseTimer > 0) {
         hitPauseTimer--;
         if (hitPauseTimer % 2 === 0) {
@@ -4345,7 +4318,7 @@ function gameLoop() {
 }
 
 function drawVSDisplay() {
-  if (introState !== 'battle' && introState !== 'replay' && introState !== 'ko') return;
+  if (introState !== 'battle' && introState !== 'ko') return;
   const aliveFighters = fighters.filter(f => f.hp > 0);
   if (aliveFighters.length < 2) return;
   const { arenaLeft, arenaTop } = getArenaBounds();
@@ -4358,7 +4331,7 @@ function drawVSDisplay() {
 }
 
 function drawFighterStatusPanels() {
-  if (introState !== 'battle' && introState !== 'replay' && introState !== 'ko') return;
+  if (introState !== 'battle' && introState !== 'ko') return;
   const aliveFighters = fighters.filter(f => f.hp > 0);
   if (aliveFighters.length === 0) return;
   const { arenaLeft, arenaTop } = getArenaBounds();
