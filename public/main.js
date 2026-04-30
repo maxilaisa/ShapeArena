@@ -255,6 +255,27 @@ class Fighter {
     this.knockbackReflection = false;
     this.reflectionDuration = 0;
 
+    // Diamond-specific: chain tracking for Sharp ability
+    this.chainCount = 0;
+    this.maxChains = 2;
+    this.chainTargets = [];
+
+    // Diamond-specific: auto-aim correction for Prism ability
+    this.autoAimCorrection = false;
+    this.autoAimDuration = 0;
+
+    // Crescent-specific: curved trail for Slice ability
+    this.curvedTrails = [];
+
+    // Crescent-specific: parry window for Moon ability
+    this.parryWindow = 0;
+    this.parryDuration = 0;
+    this.parrySuccess = false;
+
+    // Crescent-specific: orbital zone for Eclipse ability
+    this.orbitalZone = null;
+    this.orbitalRadius = 150;
+
     // Shape-specific physics properties
     this.initShapePhysics();
 
@@ -324,6 +345,39 @@ class Fighter {
       this.reflectionDuration--;
       if (this.reflectionDuration <= 0) {
         this.knockbackReflection = false;
+      }
+    }
+
+    // Update auto-aim correction (Diamond-specific)
+    if (this.autoAimCorrection) {
+      this.autoAimDuration--;
+      if (this.autoAimDuration <= 0) {
+        this.autoAimCorrection = false;
+      }
+    }
+
+    // Update curved trails (Crescent-specific)
+    this.curvedTrails = this.curvedTrails.filter(trail => {
+      trail.duration--;
+      return trail.duration > 0;
+    });
+
+    // Update parry window (Crescent-specific)
+    if (this.parryWindow > 0) {
+      this.parryWindow--;
+      this.parryDuration--;
+      if (this.parryDuration <= 0) {
+        this.parryWindow = 0;
+      }
+    }
+
+    // Update orbital zone (Crescent-specific)
+    if (this.orbitalZone) {
+      this.orbitalZone.x = this.x; // Zone follows the crescent
+      this.orbitalZone.y = this.y;
+      this.orbitalZone.duration--;
+      if (this.orbitalZone.duration <= 0) {
+        this.orbitalZone = null;
       }
     }
 
@@ -966,64 +1020,84 @@ class Fighter {
 
       case 'diamond':
         if (skillKey === 'skill1') {
-          // Reflect: cyan diamond shards
-          spawnParticles(x, y, '#00ffff', 20, {
-            minSpeed: 4, maxSpeed: 10, shape: 'square', glow: true,
-            minDecay: 0.03, decayRange: 0.03
+          // Reflect: true prediction strike with cyan targeting lines
+          const fwdAngle = Math.atan2(this.vy, this.vx);
+          spawnParticles(x, y, '#00ffff', 25, {
+            angle: fwdAngle, spread: 0.3,
+            minSpeed: 6, maxSpeed: 14, shape: 'square', glow: true,
+            minDecay: 0.025, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#ffffff', 15, {
+            minSpeed: 4, maxSpeed: 10, shape: 'spark', glow: true,
+            minDecay: 0.03, decayRange: 0.02
           });
         } else if (skillKey === 'skill2') {
-          // Refract: rainbow spark burst
-          spawnParticles(x, y, '#00ffff', 8, { minSpeed:3, maxSpeed:9, shape:'spark', glow:true, minDecay:0.04, decayRange:0.03 });
-          spawnParticles(x, y, '#ff00ff', 8, { minSpeed:3, maxSpeed:9, shape:'spark', glow:true, minDecay:0.04, decayRange:0.03 });
-          spawnParticles(x, y, '#ffff00', 8, { minSpeed:3, maxSpeed:9, shape:'spark', glow:true, minDecay:0.04, decayRange:0.03 });
+          // Sharp: chain strike with connecting lines
+          spawnParticles(x, y, '#00ffff', 20, {
+            minSpeed: 3, maxSpeed: 9, shape: 'square', glow: true,
+            minDecay: 0.03, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#ff00ff', 15, {
+            minSpeed: 2, maxSpeed: 7, shape: 'spark', glow: true,
+            minDecay: 0.04, decayRange: 0.02
+          });
         } else {
-          // Prism ultimate: massive rainbow explosion
-          const rainbowColors = ['#ff0000','#ff8800','#ffff00','#00ff00','#0088ff','#8800ff'];
-          for (let rc of rainbowColors) {
-            spawnParticles(x, y, rc, 10, {
+          // Prism: auto-aim correction with refracted beams
+          const prismColors = ['#00ffff', '#ff00ff', '#ffff00', '#00ff00'];
+          for (const color of prismColors) {
+            spawnParticles(x, y, color, 15, {
               minSpeed: 5, maxSpeed: 15, shape: 'square', glow: true,
-              minDecay: 0.015, decayRange: 0.02
+              minDecay: 0.02, decayRange: 0.02
             });
           }
-          spawnParticles(x, y, '#ffffff', 25, {
-            minSpeed: 3, maxSpeed: 10, shape: 'ring', glow: true,
-            minDecay: 0.02, decayRange: 0.02
+          spawnParticles(x, y, '#ffffff', 30, {
+            minSpeed: 4, maxSpeed: 12, shape: 'ring', glow: true,
+            minDecay: 0.015, decayRange: 0.02
           });
         }
         break;
 
       case 'crescent':
         if (skillKey === 'skill1') {
-          // Slice: curved arc of silver sparks
+          // Slice: curved trail that damages
           const sliceAngle = Math.atan2(this.vy, this.vx);
-          for (let i = -4; i <= 4; i++) {
+          const curveAngle = sliceAngle + 0.4;
+          for (let i = -3; i <= 3; i++) {
             spawnParticles(
-              x + Math.cos(sliceAngle + Math.PI / 2) * i * 6,
-              y + Math.sin(sliceAngle + Math.PI / 2) * i * 6,
-              '#aaddff', 3, {
-                angle: sliceAngle, spread: 0.4,
-                minSpeed: 4, maxSpeed: 10, shape: 'circle', glow: true,
-                minDecay: 0.04, decayRange: 0.03
+              x + Math.cos(sliceAngle + Math.PI / 2) * i * 8,
+              y + Math.sin(sliceAngle + Math.PI / 2) * i * 8,
+              '#88aaff', 4, {
+                angle: curveAngle, spread: 0.3,
+                minSpeed: 5, maxSpeed: 12, shape: 'circle', glow: true,
+                minDecay: 0.03, decayRange: 0.02
               });
           }
-        } else if (skillKey === 'skill2') {
-          // Moon phase: blue orbs
-          spawnParticles(x, y, '#4488ff', 20, {
-            minSpeed: 4, maxSpeed: 8, shape: 'circle', glow: true,
-            minDecay: 0.015, decayRange: 0.02
-          });
-        } else {
-          // Eclipse ultimate: dark + blue burst
-          spawnParticles(x, y, '#0033ff', 35, {
-            minSpeed: 5, maxSpeed: 14, shape: 'circle', glow: true,
-            trail: true, minDecay: 0.015, decayRange: 0.02
-          });
-          spawnParticles(x, y, '#8833ff', 20, {
+          spawnParticles(x, y, '#4488ff', 15, {
             minSpeed: 3, maxSpeed: 8, shape: 'ring', glow: true,
-            minDecay: 0.02, decayRange: 0.02
+            minDecay: 0.04, decayRange: 0.02
+          });
+        } else if (skillKey === 'skill2') {
+          // Moon: timed parry mechanic with shield effect
+          spawnParticles(x, y, '#88aaff', 25, {
+            minSpeed: 2, maxSpeed: 6, shape: 'ring', glow: true,
+            minDecay: 0.03, decayRange: 0.02
           });
           spawnParticles(x, y, '#ffffff', 15, {
-            minSpeed: 6, maxSpeed: 12, shape: 'spark', glow: true,
+            minSpeed: 1, maxSpeed: 4, shape: 'circle', glow: true,
+            minDecay: 0.04, decayRange: 0.02
+          });
+        } else {
+          // Eclipse: orbital curved zone
+          spawnParticles(x, y, '#0033ff', 30, {
+            minSpeed: 4, maxSpeed: 12, shape: 'circle', glow: true,
+            trail: true, minDecay: 0.02, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#8833ff', 25, {
+            minSpeed: 2, maxSpeed: 8, shape: 'ring', glow: true,
+            minDecay: 0.025, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#4488ff', 20, {
+            minSpeed: 5, maxSpeed: 14, shape: 'spark', glow: true,
             minDecay: 0.03, decayRange: 0.02
           });
         }
@@ -1152,27 +1226,48 @@ class Fighter {
       this.activeEffects = this.activeEffects.filter(e => !debuffTypes.includes(e.type));
       this.cooldowns.skill1 = 95;
     } else if (this.shapeType === 'diamond') {
+      // Reflect: true prediction strike with higher scaling
       if (this.target) {
         const dx = this.target.x - this.x;
         const dy = this.target.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0) {
-          const predX = this.target.x + this.target.vx * 8;
-          const predY = this.target.y + this.target.vy * 8;
+          // Enhanced prediction: look further ahead for better accuracy
+          const predFrames = 15; // Increased from 8
+          const predX = this.target.x + this.target.vx * predFrames;
+          const predY = this.target.y + this.target.vy * predFrames;
           const predDx = predX - this.x; const predDy = predY - this.y;
           const predDist = Math.sqrt(predDx * predDx + predDy * predDy);
-          if (predDist > 0) { this.vx += (predDx / predDist) * 10; this.vy += (predDy / predDist) * 10; }
+          if (predDist > 0) {
+            // Higher scaling force
+            const force = 14; // Increased from 10
+            this.vx += (predDx / predDist) * force;
+            this.vy += (predDy / predDist) * force;
+            this.addEffect('predictionBoost', 3, 90); // Stronger prediction boost
+          }
         }
       }
-      this.cooldowns.skill1 = 120;
+      this.cooldowns.skill1 = 130;
     } else if (this.shapeType === 'crescent') {
-      if (this.vx !== 0 || this.vy !== 0) {
+      // Slice: leaves curved trail that damages
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
         const angle = Math.atan2(this.vy, this.vx);
-        const curveAngle = angle + 0.3;
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        this.vx = Math.cos(curveAngle) * speed * 1.5;
-        this.vy = Math.sin(curveAngle) * speed * 1.5;
-        this.addEffect('curveForce', 0.05, 40);
+        const curveAngle = angle + 0.4;
+        this.vx = Math.cos(curveAngle) * speed * 1.8;
+        this.vy = Math.sin(curveAngle) * speed * 1.8;
+        
+        // Create curved trail
+        this.curvedTrails.push({
+          startX: this.x,
+          startY: this.y,
+          endX: this.x + Math.cos(angle) * 100,
+          endY: this.y + Math.sin(angle) * 100,
+          curveAngle: angle + 0.4,
+          damage: 8,
+          duration: 60,
+          maxDuration: 60
+        });
       }
       this.cooldowns.skill1 = 105;
     } else if (this.shapeType === 'dodecahedron') {
@@ -1285,16 +1380,35 @@ class Fighter {
       this.addEffect('knockbackResistance', 0.7, 120); // 70% knockback resistance
       this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'diamond') {
-      if (this.vx !== 0 || this.vy !== 0) {
-        const angle = Math.atan2(this.vy, this.vx);
-        const newAngle = angle + (Math.random() - 0.5) * 1.5;
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        this.vx = Math.cos(newAngle) * speed; this.vy = Math.sin(newAngle) * speed;
+      // Sharp: chain up to 2 times
+      this.chainCount = 0;
+      this.chainTargets = [];
+      // Initial burst toward target
+      if (this.target) {
+        const dx = this.target.x - this.x;
+        const dy = this.target.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+          this.vx += (dx / dist) * 12;
+          this.vy += (dy / dist) * 12;
+          this.chainTargets.push(this.target);
+          this.chainCount = 1;
+        }
+      } else {
+        // Random direction if no target
+        const angle = Math.random() * Math.PI * 2;
+        this.vx += Math.cos(angle) * 10;
+        this.vy += Math.sin(angle) * 10;
       }
+      this.addEffect('chainStrike', { maxChains: 2, currentChain: 1 }, 60);
       this.cooldowns.skill2 = 90;
     } else if (this.shapeType === 'crescent') {
-      const phase = Math.sin(Date.now() / 500);
-      this.addEffect('massMultiplier', 1.5 + phase * 0.5, 60); this.cooldowns.skill2 = 100;
+      // Moon: timed parry mechanic
+      this.parryWindow = 30; // 0.5 second parry window
+      this.parryDuration = 30;
+      this.parrySuccess = false;
+      this.addEffect('damageReduction', 0.8, 30); // 80% damage reduction during parry
+      this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'dodecahedron') {
       this.addEffect('massMultiplier', 1.8, 80);
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
@@ -1345,10 +1459,25 @@ class Fighter {
       this.addEffect('regeneration', 0.8, 180); // Stronger regeneration
       this.addEffect('speedBoost', 15, 180);
     } else if (this.shapeType === 'diamond') {
-      this.addEffect('predictionBoost', 2, 150); this.addEffect('velocityCap', 20, 150);
+      // Prism: auto-aim correction
+      this.autoAimCorrection = true;
+      this.autoAimDuration = 180; // 3 seconds of auto-aim
+      this.addEffect('predictionBoost', 4, 180); // Maximum prediction boost
+      this.addEffect('velocityCap', 25, 180); // Higher velocity cap
+      this.addEffect('chainStrike', { maxChains: 2, currentChain: 0 }, 180); // Chain capability
     } else if (this.shapeType === 'crescent') {
-      this.vx *= 2.0; this.vy *= 2.0;
-      this.addEffect('curveForce', 0.1, 150); this.addEffect('speedBoost', 20, 150);
+      // Eclipse: creates orbital curved zone
+      this.orbitalZone = {
+        x: this.x,
+        y: this.y,
+        radius: this.orbitalRadius,
+        curveForce: 0.15,
+        duration: 180,
+        maxDuration: 180
+      };
+      this.vx *= 1.5; this.vy *= 1.5;
+      this.addEffect('curveForce', 0.12, 180);
+      this.addEffect('speedBoost', 15, 180);
     } else if (this.shapeType === 'dodecahedron') {
       this.personality.aggression = Math.min(10, this.personality.aggression + 3);
       this.personality.mobility   = Math.min(10, this.personality.mobility   + 3);
@@ -1525,6 +1654,27 @@ class Fighter {
         ctx.arc(this.x, this.y, this.radius + 12, startAngle, endAngle);
         ctx.stroke();
       }
+      ctx.restore();
+    }
+
+    // Draw Crescent curved trails
+    for (const trail of this.curvedTrails) {
+      const trailAlpha = trail.duration / trail.maxDuration;
+      ctx.save();
+      ctx.globalAlpha = trailAlpha * 0.5;
+      ctx.strokeStyle = '#88aaff';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#4488ff';
+      ctx.shadowBlur = 15;
+      
+      // Draw curved path
+      ctx.beginPath();
+      ctx.moveTo(trail.startX, trail.startY);
+      // Quadratic curve to end point with curve angle
+      const midX = (trail.startX + trail.endX) / 2 + Math.cos(trail.curveAngle + Math.PI/2) * 30;
+      const midY = (trail.startY + trail.endY) / 2 + Math.sin(trail.curveAngle + Math.PI/2) * 30;
+      ctx.quadraticCurveTo(midX, midY, trail.endX, trail.endY);
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -2508,6 +2658,186 @@ class Fighter {
       
       ctx.restore();
     }
+
+    // Diamond Prism Cannon weapon (drawn on top)
+    if (this.shapeType === 'diamond') {
+      ctx.save();
+      
+      const angle = Math.atan2(this.vy, this.vx);
+      const cannonLength = this.radius + 20;
+      const cannonWidth = 8;
+      
+      // Sharp crystal projecting forward
+      const tipX = this.x + Math.cos(angle) * cannonLength;
+      const tipY = this.y + Math.sin(angle) * cannonLength;
+      const baseX = this.x - Math.cos(angle) * (this.radius * 0.5);
+      const baseY = this.y - Math.sin(angle) * (this.radius * 0.5);
+      
+      // Crystal body
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#00ffff';
+      ctx.shadowColor = '#0088ff';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(baseX + Math.cos(angle + Math.PI/2) * cannonWidth, baseY + Math.sin(angle + Math.PI/2) * cannonWidth);
+      ctx.lineTo(baseX + Math.cos(angle - Math.PI/2) * cannonWidth, baseY + Math.sin(angle - Math.PI/2) * cannonWidth);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Crystal edge highlight
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Targeting lines (splits light into targeting lines)
+      if (this.target) {
+        const targetDx = this.target.x - this.x;
+        const targetDy = this.target.y - this.y;
+        const targetDist = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
+        
+        if (targetDist > 0) {
+          const lineLength = Math.min(100, targetDist);
+          const lineAngle = Math.atan2(targetDy, targetDx);
+          
+          ctx.globalAlpha = 0.4;
+          ctx.strokeStyle = '#00ffff';
+          ctx.lineWidth = 1;
+          ctx.shadowColor = '#00ffff';
+          ctx.shadowBlur = 10;
+          
+          // Multiple targeting lines
+          for (let i = -1; i <= 1; i++) {
+            const lineOffset = i * 0.1;
+            ctx.beginPath();
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(
+              tipX + Math.cos(lineAngle + lineOffset) * lineLength,
+              tipY + Math.sin(lineAngle + lineOffset) * lineLength
+            );
+            ctx.stroke();
+          }
+        }
+      }
+      
+      // During ultimate: multiple refracted beams
+      if (this.cooldowns.ultimate < 90) {
+        const beamColors = ['#00ffff', '#ff00ff', '#ffff00', '#00ff00'];
+        for (let i = 0; i < beamColors.length; i++) {
+          const beamAngle = angle + (i - 1.5) * 0.3;
+          const beamLength = 80 + Math.sin(Date.now() / 50 + i) * 20;
+          
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = beamColors[i];
+          ctx.lineWidth = 3;
+          ctx.shadowColor = beamColors[i];
+          ctx.shadowBlur = 15;
+          ctx.beginPath();
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(
+            tipX + Math.cos(beamAngle) * beamLength,
+            tipY + Math.sin(beamAngle) * beamLength
+          );
+          ctx.stroke();
+        }
+      }
+      
+      ctx.restore();
+    }
+
+    // Crescent curved orbital weapon (drawn on top)
+    if (this.shapeType === 'crescent') {
+      ctx.save();
+      
+      const angle = Math.atan2(this.vy, this.vx);
+      const orbitRadius = this.radius + 15;
+      
+      // Flow controller: curved orbital elements
+      const orbitCount = 3;
+      for (let i = 0; i < orbitCount; i++) {
+        const orbitAngle = (Date.now() / 200) + (i * Math.PI * 2 / orbitCount);
+        const orbitX = this.x + Math.cos(orbitAngle) * orbitRadius;
+        const orbitY = this.y + Math.sin(orbitAngle) * orbitRadius;
+        
+        // Orbital element
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#88aaff';
+        ctx.shadowColor = '#4488ff';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(orbitX, orbitY, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Curved trail behind each orbital
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#88aaff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, orbitRadius, orbitAngle - 0.5, orbitAngle);
+        ctx.stroke();
+      }
+      
+      // Parry shield indicator during Moon ability
+      if (this.parryWindow > 0) {
+        const parryAlpha = this.parryWindow / 30;
+        ctx.globalAlpha = parryAlpha * 0.5;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#88aaff';
+        ctx.shadowBlur = 25;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius + 20, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Shield segments
+        ctx.globalAlpha = parryAlpha * 0.7;
+        ctx.strokeStyle = '#88aaff';
+        ctx.lineWidth = 4;
+        const segments = 6;
+        for (let i = 0; i < segments; i++) {
+          const segAngle = (Date.now() / 50) + (i * Math.PI * 2 / segments);
+          const startAngle = segAngle - 0.2;
+          const endAngle = segAngle + 0.2;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius + 20, startAngle, endAngle);
+          ctx.stroke();
+        }
+      }
+      
+      // Orbital zone indicator during Eclipse ultimate
+      if (this.orbitalZone) {
+        const zoneAlpha = this.orbitalZone.duration / this.orbitalZone.maxDuration;
+        ctx.globalAlpha = zoneAlpha * 0.2;
+        ctx.fillStyle = '#4488ff';
+        ctx.shadowColor = '#8833ff';
+        ctx.shadowBlur = 30;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.orbitalZone.radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Zone rim
+        ctx.globalAlpha = zoneAlpha * 0.4;
+        ctx.strokeStyle = '#88aaff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.orbitalZone.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Curved flow lines in zone
+        ctx.globalAlpha = zoneAlpha * 0.3;
+        ctx.strokeStyle = '#4488ff';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+          const flowAngle = (Date.now() / 100) + (i * Math.PI / 2);
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.orbitalZone.radius * 0.7, flowAngle, flowAngle + 1);
+          ctx.stroke();
+        }
+      }
+      
+      ctx.restore();
+    }
   }
 
   drawShape(x, y, size, color, alpha) {
@@ -2687,6 +3017,52 @@ function handleCollisions(fighters) {
         }
       }
     }
+    // Crescent curved trails: damage enemies in trail path
+    for (const trail of f1.curvedTrails) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        
+        // Check if enemy is near the curved trail path
+        const trailDx = f2.x - trail.startX;
+        const trailDy = f2.y - trail.startY;
+        const trailDist = Math.sqrt(trailDx * trailDx + trailDy * trailDy);
+        
+        if (trailDist < 30) {
+          f2.hp -= trail.damage;
+          f2.hitFlash = 15;
+          f2.lastAttacker = f1;
+          // Apply curve force to enemy
+          const curveAngle = trail.curveAngle;
+          f2.vx += Math.cos(curveAngle) * 5;
+          f2.vy += Math.sin(curveAngle) * 5;
+        }
+      }
+    }
+    // Crescent orbital zone: apply curve force to enemies in zone
+    if (f1.orbitalZone) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        
+        const dx = f2.x - f1.orbitalZone.x;
+        const dy = f2.y - f1.orbitalZone.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 0 && dist < f1.orbitalZone.radius) {
+          // Apply orbital curve force
+          const angle = Math.atan2(dy, dx);
+          const perpAngle = angle + Math.PI / 2;
+          f2.vx += Math.cos(perpAngle) * f1.orbitalZone.curveForce * 10;
+          f2.vy += Math.sin(perpAngle) * f1.orbitalZone.curveForce * 10;
+          // Also apply slight pull toward center
+          f2.vx -= (dx / dist) * 0.5;
+          f2.vy -= (dy / dist) * 0.5;
+        }
+      }
+    }
     // Star impact craters: apply slow to enemies in crater zones
     for (let crater of f1.impactCraters) {
       for (let j = 0; j < fighters.length; j++) {
@@ -2855,6 +3231,34 @@ function handleCollisions(fighters) {
             // f1 hits f2
             const f1CanDamage = !f1.needsWallBounce && f1.invulnerabilityFrames <= 0;
             const f2CanDamage = !f2.needsWallBounce && f2.invulnerabilityFrames <= 0;
+            
+            // Crescent parry check
+            if (f1.parryWindow > 0 && f1CanDamage) {
+              f1.parrySuccess = true;
+              f1.parryWindow = 0;
+              // Parry reflects damage back to attacker
+              f2.hp -= reducedDamage;
+              f2.hitFlash = 15;
+              f2.lastAttacker = f1;
+              reducedDamage = 0; // No damage to parrier
+              spawnParticles(contactX, contactY, '#88aaff', 20, {
+                minSpeed: 4, maxSpeed: 10, shape: 'ring', glow: true,
+                minDecay: 0.03, decayRange: 0.02
+              });
+            }
+            if (f2.parryWindow > 0 && f2CanDamage) {
+              f2.parrySuccess = true;
+              f2.parryWindow = 0;
+              // Parry reflects damage back to attacker
+              f1.hp -= reducedDamage;
+              f1.hitFlash = 15;
+              f1.lastAttacker = f2;
+              reducedDamage = 0; // No damage to parrier
+              spawnParticles(contactX, contactY, '#88aaff', 20, {
+                minSpeed: 4, maxSpeed: 10, shape: 'ring', glow: true,
+                minDecay: 0.03, decayRange: 0.02
+              });
+            }
 
             if (luckRoll < 0.5) {
               // f2 is the "attacker" (pushes f1)
@@ -2889,6 +3293,30 @@ function handleCollisions(fighters) {
                 // Star: gain speed stack on successful hit
                 if (f2.shapeType === 'star') {
                   f2.speedStacks = Math.min(f2.speedStacks + 1, f2.maxSpeedStacks);
+                }
+                // Diamond: chain strike logic
+                if (f2.shapeType === 'diamond') {
+                  const chainEffect = f2.activeEffects.find(e => e.type === 'chainStrike');
+                  if (chainEffect && chainEffect.value.currentChain < chainEffect.value.maxChains) {
+                    // Find new target to chain to
+                    for (let k = 0; k < fighters.length; k++) {
+                      if (fighters[k] === f1 || fighters[k] === f2) continue;
+                      if (fighters[k].hp <= 0) continue;
+                      if (f2.chainTargets.includes(fighters[k])) continue;
+                      
+                      const chainDx = fighters[k].x - f2.x;
+                      const chainDy = fighters[k].y - f2.y;
+                      const chainDist = Math.sqrt(chainDx * chainDx + chainDy * chainDy);
+                      
+                      if (chainDist < 200) { // Chain range
+                        f2.vx += (chainDx / chainDist) * 10;
+                        f2.vy += (chainDy / chainDist) * 10;
+                        f2.chainTargets.push(fighters[k]);
+                        chainEffect.value.currentChain++;
+                        break;
+                      }
+                    }
+                  }
                 }
                 spawnParticles(contactX, contactY, f2.color, 12, {
                   minSpeed: 3, maxSpeed: 8, shape: 'circle', glow: true,
@@ -2930,6 +3358,30 @@ function handleCollisions(fighters) {
                 f2.lastAttacker = f1;
                 f1.ultimateCharge = Math.min(f1.ultimateCharge + chargeAmount, 10);
                 f1.needsWallBounce = true;
+                // Diamond: chain strike logic
+                if (f1.shapeType === 'diamond') {
+                  const chainEffect = f1.activeEffects.find(e => e.type === 'chainStrike');
+                  if (chainEffect && chainEffect.value.currentChain < chainEffect.value.maxChains) {
+                    // Find new target to chain to
+                    for (let k = 0; k < fighters.length; k++) {
+                      if (fighters[k] === f1 || fighters[k] === f2) continue;
+                      if (fighters[k].hp <= 0) continue;
+                      if (f1.chainTargets.includes(fighters[k])) continue;
+                      
+                      const chainDx = fighters[k].x - f1.x;
+                      const chainDy = fighters[k].y - f1.y;
+                      const chainDist = Math.sqrt(chainDx * chainDx + chainDy * chainDy);
+                      
+                      if (chainDist < 200) { // Chain range
+                        f1.vx += (chainDx / chainDist) * 10;
+                        f1.vy += (chainDy / chainDist) * 10;
+                        f1.chainTargets.push(fighters[k]);
+                        chainEffect.value.currentChain++;
+                        break;
+                      }
+                    }
+                  }
+                }
                 spawnParticles(contactX, contactY, f1.color, 12, {
                   minSpeed: 3, maxSpeed: 8, shape: 'circle', glow: true,
                   minDecay: 0.04, decayRange: 0.03
