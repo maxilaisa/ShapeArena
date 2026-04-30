@@ -768,6 +768,68 @@ Each shape has fixed base personality stats with ±5% random variation per match
 - Error chance: (5 - skillDiscipline) / 100 per frame
 - Adds random velocity impulse when triggered
 
+### Wall-Bounce System
+
+Fighters must hit a wall before dealing damage again after colliding with another fighter. This creates a rhythm of combat: bounce → attack → bounce.
+
+#### Mechanics
+- **After hitting a fighter:** The attacker is flagged as needing a wall bounce (`needsWallBounce = true`)
+- **Cannot deal damage:** While flagged, the fighter cannot damage other fighters
+- **Wall bounce required:** Hitting any arena wall clears the flag (`needsWallBounce = false`)
+- **Visual feedback:** A flash effect and particle burst indicate when a fighter is ready to deal damage again
+
+#### Bounce State System
+
+Each fighter tracks their bounce state with three possible values:
+
+**NONE**
+- Default state after spawn or after dealing damage
+- Cannot deal damage
+- Moves toward walls intentionally to enable attacks
+- Skill usage reduced by ~50%
+
+**PLANNED**
+- Triggered when hitting a wall from own movement
+- Can deal damage immediately
+- Increased aggression (1.5x pursuit strength)
+- Increased skill usage chance
+- Main combat window for attacks
+
+**FORCED**
+- Triggered when hitting a wall from external force (collision knockback)
+- 15-25 frame delay before attacking
+- Stabilization movement (velocity reduction + center correction)
+- Skill usage blocked during delay
+- Prevents chaotic spam hits
+
+#### Reset Rules
+- Bounce state resets to NONE after dealing damage
+- Bounce state also resets to NONE after 60 frames (1 second)
+- Forces the cycle: bounce → attack → reset → bounce
+
+#### Personality Modifiers
+
+**Precision**
+- Improves pre-bounce adjustment accuracy
+- Fighters with high precision aim better when approaching walls
+
+**Chaos**
+- Adds randomness ONLY during PLANNED bounce
+- Makes attacks less predictable after intentional wall bounces
+
+**SkillDiscipline**
+- Reduces attacking during forced bounce delay
+- Undisciplined fighters may still try to attack during stabilization
+
+**Aggression**
+- 20% pursuit strength bonus when >7
+- High aggression fighters ignore bad bounces more often
+
+#### Pre-Bounce Adjustment
+- When near a wall, fighters slightly adjust movement toward target direction
+- Adjustment strength scaled by mobility + precision
+- Creates intentional rebounds and fewer "useless bounces"
+
 ### Skill Usage
 
 #### Base Activation Chance
