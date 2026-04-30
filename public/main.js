@@ -231,6 +231,12 @@ class Fighter {
     this.needsWallBounce = false;
     this.wallBounceFlash = 0; // visual feedback when wall bounce resets damage
 
+    // Bounce state system: NONE | PLANNED | FORCED
+    this.bounceState = 'NONE';
+    this.bounceStateTimer = 0; // Reset after 60 frames
+    this.forcedBounceDelay = 0; // Delay after forced bounce (15-25 frames)
+    this.isForcedBounce = false; // Track if current wall hit is from external force
+
     this.cooldowns = { skill1: 0, skill2: 0, ultimate: 0 };
     this.activeEffects = [];
     this.trail = [];
@@ -404,6 +410,19 @@ class Fighter {
   }
 
   update(fighters) {
+    // Update bounce state timer
+    if (this.bounceStateTimer > 0) {
+      this.bounceStateTimer--;
+      if (this.bounceStateTimer <= 0) {
+        this.bounceState = 'NONE';
+      }
+    }
+
+    // Update forced bounce delay
+    if (this.forcedBounceDelay > 0) {
+      this.forcedBounceDelay--;
+    }
+
     // Update impact craters (Star-specific)
     this.impactCraters = this.impactCraters.filter(crater => {
       crater.duration--;
@@ -573,6 +592,21 @@ class Fighter {
     if (this.y - this.radius < arenaTop    + wallMargin) avoidY += 1;
     if (this.y + this.radius > arenaBottom - wallMargin) avoidY -= 1;
 
+    // Pre-bounce adjustment: slightly adjust movement toward target when near wall
+    const p = this.personality;
+    if ((avoidX !== 0 || avoidY !== 0) && this.target && this.target.hp > 0) {
+      // Precision improves pre-bounce adjustment
+      const precisionBonus = p.precision / 40;
+      const adjustmentStrength = 0.15 * (1 + (p.mobility / 40) + precisionBonus);
+      const targetDx = this.target.x - this.x;
+      const targetDy = this.target.y - this.y;
+      const targetDist = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
+      if (targetDist > 0) {
+        this.vx += (targetDx / targetDist) * adjustmentStrength;
+        this.vy += (targetDy / targetDist) * adjustmentStrength;
+      }
+    }
+
     if (this.target && this.target.hp > 0 && this.collisionKnockbackCooldown === 0) {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
@@ -584,7 +618,52 @@ class Fighter {
       const hpPercent = this.hp / this.maxHp;
       const fearThreshold = p.fear / 10;
 
-      if (hpPercent < fearThreshold && p.fear > 3) {
+      // Bounce state movement rules
+      if (this.bounceState === 'NONE') {
+        // Move toward wall intentionally
+        if (avoidX !== 0 || avoidY !== 0) {
+          const wallSeekStrength = 0.3 * (1 + p.mobility / 20);
+          this.vx -= avoidX * wallSeekStrength; // Move toward wall
+          this.vy -= avoidY * wallSeekStrength;
+        }
+      } else if (this.bounceState === 'PLANNED') {
+        // Increase aggression - attack immediately
+        let pursueStrength = 0.6 * (1 + p.aggression / 20);
+        // Aggression increases chance to ignore bad bounces
+        if (p.aggression > 7) {
+          pursueStrength *= 1.2; // 20% bonus for high aggression
+        }
+        // Chaos adds randomness ONLY during PLANNED bounce
+        if (p.chaos > 5) {
+          const chaosRandomness = (p.chaos / 10) * 0.3;
+          pursueStrength += (Math.random() - 0.5) * chaosRandomness;
+        }
+        this.vx += (dx / dist) * pursueStrength;
+        this.vy += (dy / dist) * pursueStrength;
+      } else if (this.bounceState === 'FORCED' && this.forcedBounceDelay > 0) {
+        // SkillDiscipline reduces attacking during forced bounce
+        if (p.skillDiscipline < 5) {
+          // Less disciplined fighters may still try to attack
+          const disciplinePenalty = (5 - p.skillDiscipline) / 10;
+          this.vx += (dx / dist) * disciplinePenalty * 0.2;
+          this.vy += (dy / dist) * disciplinePenalty * 0.2;
+        }
+        // Stabilization movement - reduce chaos, control correction
+        const stabilizeStrength = 0.2;
+        // Reduce velocity slightly for control
+        this.vx *= 0.95;
+        this.vy *= 0.95;
+        // Add slight correction toward center
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const centerDx = centerX - this.x;
+        const centerDy = centerY - this.y;
+        const centerDist = Math.sqrt(centerDx * centerDx + centerDy * centerDy);
+        if (centerDist > 0) {
+          this.vx += (centerDx / centerDist) * stabilizeStrength;
+          this.vy += (centerDy / centerDist) * stabilizeStrength;
+        }
+      } else if (hpPercent < fearThreshold && p.fear > 3) {
         const retreatStrength = 0.6 * (fearThreshold - hpPercent + 0.1);
         this.vx -= (dx / dist) * retreatStrength;
         this.vy -= (dy / dist) * retreatStrength;
@@ -684,6 +763,18 @@ class Fighter {
         minSpeed: 2, maxSpeed: 6, shape: 'spark', glow: true,
         minDecay: 0.04, decayRange: 0.04
       });
+    }
+
+    // Bounce state detection
+    if (hitWall) {
+      if (this.isForcedBounce) {
+        this.bounceState = 'FORCED';
+        this.forcedBounceDelay = 15 + Math.floor(Math.random() * 10); // 15-25 frames
+        this.isForcedBounce = false;
+      } else {
+        this.bounceState = 'PLANNED';
+      }
+      this.bounceStateTimer = 60; // Reset after 60 frames
     }
 
     if (this.attackCooldown > 0) this.attackCooldown--;
@@ -1682,7 +1773,17 @@ class Fighter {
     const adjustedThreshold = this.skillThresholdMultiplier;
     const adjustedDefensive = this.getAdjustedDefensivePriority(1);
     
-    const baseChance = 0.02 * (1 + chaosFactor * 0.5) * this.aggressionMultiplier;
+    // Bounce state modifiers for skill usage
+    let skillUsageModifier = 1.0;
+    if (this.bounceState === 'NONE') {
+      skillUsageModifier = 0.5; // Reduce skill usage by ~50%
+    } else if (this.bounceState === 'PLANNED') {
+      skillUsageModifier = 1.5; // Increase skill usage
+    } else if (this.bounceState === 'FORCED' && this.forcedBounceDelay > 0) {
+      skillUsageModifier = 0; // Cannot attack during forced bounce delay
+    }
+
+    const baseChance = 0.02 * (1 + chaosFactor * 0.5) * this.aggressionMultiplier * skillUsageModifier;
     const ultimateChance = 0.01 * (1 + p.skillDiscipline / 20);
 
     // Ultimate: Controllers use earlier in chaos mode
@@ -3701,6 +3802,10 @@ function handleCollisions(fighters) {
           f1.collisionKnockbackCooldown = 30; // 0.5 seconds
           f2.collisionKnockbackCooldown = 30;
 
+          // Mark as forced bounce (external force from collision)
+          f1.isForcedBounce = true;
+          f2.isForcedBounce = true;
+
           const collisionSpeed = Math.abs(dvn);
           if (collisionSpeed > 3) {
             const baseDamage = Math.floor(collisionSpeed * 0.8) + Math.floor(Math.random() * 3);
@@ -3722,8 +3827,8 @@ function handleCollisions(fighters) {
             });
 
             // f1 hits f2
-            const f1CanDamage = !f1.needsWallBounce && f1.invulnerabilityFrames <= 0;
-            const f2CanDamage = !f2.needsWallBounce && f2.invulnerabilityFrames <= 0;
+            const f1CanDamage = !f1.needsWallBounce && f1.invulnerabilityFrames <= 0 && f1.bounceState !== 'NONE';
+            const f2CanDamage = !f2.needsWallBounce && f2.invulnerabilityFrames <= 0 && f2.bounceState !== 'NONE';
             
             // Crescent parry check
             if (f1.parryWindow > 0 && f1CanDamage) {
@@ -3783,6 +3888,9 @@ function handleCollisions(fighters) {
                 f2.ultimateCharge = Math.min(f2.ultimateCharge + chargeAmount, 10);
                 // Attacker now needs to wall-bounce before next damage
                 f2.needsWallBounce = true;
+                // Reset bounce state after dealing damage
+                f2.bounceState = 'NONE';
+                f2.bounceStateTimer = 0;
                 // Star: gain speed stack on successful hit
                 if (f2.shapeType === 'star') {
                   f2.speedStacks = Math.min(f2.speedStacks + 1, f2.maxSpeedStacks);
@@ -3851,6 +3959,9 @@ function handleCollisions(fighters) {
                 f2.lastAttacker = f1;
                 f1.ultimateCharge = Math.min(f1.ultimateCharge + chargeAmount, 10);
                 f1.needsWallBounce = true;
+                // Reset bounce state after dealing damage
+                f1.bounceState = 'NONE';
+                f1.bounceStateTimer = 0;
                 // Diamond: chain strike logic
                 if (f1.shapeType === 'diamond') {
                   const chainEffect = f1.activeEffects.find(e => e.type === 'chainStrike');
