@@ -276,6 +276,18 @@ class Fighter {
     this.orbitalZone = null;
     this.orbitalRadius = 150;
 
+    // Dodecahedron-specific: cycle system for forms
+    this.forms = ['aggression', 'mobility', 'precision'];
+    this.currentFormIndex = 0;
+    this.formTimer = 0;
+    this.formDuration = 120; // 2 seconds per form
+    this.formLocked = false;
+    this.formLockDuration = 0;
+    this.perfectAdaptation = false;
+    this.perfectAdaptationDuration = 0;
+    this.adaptationFatigue = false;
+    this.adaptationFatigueDuration = 0;
+
     // Shape-specific physics properties
     this.initShapePhysics();
 
@@ -381,6 +393,43 @@ class Fighter {
       }
     }
 
+    // Update form cycling (Dodecahedron-specific)
+    if (this.shapeType === 'dodecahedron') {
+      if (!this.formLocked && !this.perfectAdaptation) {
+        this.formTimer--;
+        if (this.formTimer <= 0) {
+          this.currentFormIndex = (this.currentFormIndex + 1) % this.forms.length;
+          this.formTimer = this.formDuration;
+        }
+      }
+      
+      // Update form lock
+      if (this.formLocked) {
+        this.formLockDuration--;
+        if (this.formLockDuration <= 0) {
+          this.formLocked = false;
+        }
+      }
+      
+      // Update perfect adaptation
+      if (this.perfectAdaptation) {
+        this.perfectAdaptationDuration--;
+        if (this.perfectAdaptationDuration <= 0) {
+          this.perfectAdaptation = false;
+          this.adaptationFatigue = true;
+          this.adaptationFatigueDuration = 60;
+        }
+      }
+      
+      // Update adaptation fatigue
+      if (this.adaptationFatigue) {
+        this.adaptationFatigueDuration--;
+        if (this.adaptationFatigueDuration <= 0) {
+          this.adaptationFatigue = false;
+        }
+      }
+    }
+
     this.updateActiveEffects();
     if (this.cooldowns.skill1 > 0) this.cooldowns.skill1--;
     if (this.cooldowns.skill2 > 0) this.cooldowns.skill2--;
@@ -390,6 +439,12 @@ class Fighter {
 
     this.vx *= FRICTION;
     this.vy *= FRICTION;
+    
+    // Apply adaptation fatigue (Dodecahedron-specific)
+    if (this.adaptationFatigue) {
+      this.vx *= 0.7; // 30% slow
+      this.vy *= 0.7;
+    }
 
     // Decrement collision knockback cooldown
     if (this.collisionKnockbackCooldown > 0) this.collisionKnockbackCooldown--;
@@ -1104,32 +1159,48 @@ class Fighter {
         break;
 
       case 'dodecahedron':
+        const currentForm = this.forms[this.currentFormIndex];
         if (skillKey === 'skill1') {
-          // Adapt: multi-color geometric burst
-          spawnParticles(x, y, '#33ff8c', 20, {
-            minSpeed: 2, maxSpeed: 7, shape: 'circle', glow: true,
-            minDecay: 0.025, decayRange: 0.025
+          // Adapt: form shift with color-coded flash
+          let formColor = '#33ff8c'; // Default green
+          if (currentForm === 'aggression') formColor = '#ff6600'; // Red/orange
+          else if (currentForm === 'mobility') formColor = '#00aaff'; // Blue
+          else if (currentForm === 'precision') formColor = '#ffdd00'; // White/gold
+          
+          spawnParticles(x, y, formColor, 25, {
+            minSpeed: 3, maxSpeed: 8, shape: 'square', glow: true,
+            minDecay: 0.025, decayRange: 0.02
           });
-          spawnParticles(x, y, '#ffffff', 10, {
-            minSpeed: 3, maxSpeed: 6, shape: 'square', glow: true,
-            minDecay: 0.04, decayRange: 0.03
+          spawnParticles(x, y, '#ffffff', 15, {
+            minSpeed: 2, maxSpeed: 6, shape: 'spark', glow: true,
+            minDecay: 0.03, decayRange: 0.02
           });
         } else if (skillKey === 'skill2') {
-          // Face shift: prismatic panels
-          spawnParticles(x, y, '#33ff8c', 12, { minSpeed:2, maxSpeed:6, shape:'square', glow:true, minDecay:0.03, decayRange:0.03 });
-          spawnParticles(x, y, '#88ffaa', 12, { minSpeed:3, maxSpeed:8, shape:'circle', glow:true, minDecay:0.03, decayRange:0.03 });
+          // Face: HP to power with unstable glow
+          const hpPercent = this.hp / this.maxHp;
+          const intensity = 1 - hpPercent;
+          const faceColor = intensity > 0.5 ? '#ff4400' : '#33ff8c';
+          
+          spawnParticles(x, y, faceColor, 20, {
+            minSpeed: 2, maxSpeed: 7, shape: 'square', glow: true,
+            minDecay: 0.03, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#ffffff', 12, {
+            minSpeed: 3, maxSpeed: 8, shape: 'circle', glow: true,
+            minDecay: 0.04, decayRange: 0.02
+          });
         } else {
-          // Transform ultimate: full spectrum explosion
-          const colors = ['#33ff8c','#00ffff','#8800ff','#ffff00','#ff4400'];
-          for (let cc of colors) {
-            spawnParticles(x, y, cc, 12, {
-              minSpeed: 4, maxSpeed: 14, shape: 'circle', glow: true,
-              minDecay: 0.015, decayRange: 0.02
+          // Transform: Perfect Adaptation Window - all forms overlap
+          const transformColors = ['#ff6600', '#00aaff', '#ffdd00', '#33ff8c'];
+          for (const color of transformColors) {
+            spawnParticles(x, y, color, 18, {
+              minSpeed: 4, maxSpeed: 14, shape: 'square', glow: true,
+              minDecay: 0.02, decayRange: 0.02
             });
           }
-          spawnParticles(x, y, '#ffffff', 20, {
-            minSpeed: 3, maxSpeed: 9, shape: 'ring', glow: true,
-            minDecay: 0.02, decayRange: 0.02
+          spawnParticles(x, y, '#ffffff', 30, {
+            minSpeed: 3, maxSpeed: 10, shape: 'ring', glow: true,
+            minDecay: 0.015, decayRange: 0.02
           });
         }
         break;
@@ -1271,9 +1342,27 @@ class Fighter {
       }
       this.cooldowns.skill1 = 105;
     } else if (this.shapeType === 'dodecahedron') {
-      const stat = ['aggression','mobility','precision'][Math.floor(Math.random() * 3)];
-      this.personality[stat] = Math.min(10, this.personality[stat] + 2);
-      this.addEffect('adaptiveStats', 1, 180); this.cooldowns.skill1 = 150;
+      // Adapt: skip to next form in cycle with bonus
+      if (!this.formLocked) {
+        this.currentFormIndex = (this.currentFormIndex + 1) % this.forms.length;
+        this.formTimer = this.formDuration; // Reset timer on skip
+      }
+      
+      const currentForm = this.forms[this.currentFormIndex];
+      
+      // Apply form-specific bonus for 1.5 seconds
+      if (currentForm === 'aggression') {
+        this.addEffect('massMultiplier', 2.0, 90); // +2.0x mass
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > 0) { this.vx *= 1.3; this.vy *= 1.3; }
+      } else if (currentForm === 'mobility') {
+        this.addEffect('speedBoost', 20, 90); // +speedBoost 20
+        this.addEffect('dragReduction', 0.5, 90); // Reduced drag
+      } else if (currentForm === 'precision') {
+        this.addEffect('predictionBoost', 2, 90); // +predictionBoost 2
+      }
+      
+      this.cooldowns.skill1 = 150;
     }
   }
 
@@ -1410,10 +1499,30 @@ class Fighter {
       this.addEffect('damageReduction', 0.8, 30); // 80% damage reduction during parry
       this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'dodecahedron') {
-      this.addEffect('massMultiplier', 1.8, 80);
-      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      if (speed > 0) { this.vx *= 1.2; this.vy *= 1.2; }
-      this.cooldowns.skill2 = 125;
+      // Face: convert missing HP to power, lock current form
+      const hpPercent = this.hp / this.maxHp;
+      const missingHp = 1 - hpPercent;
+      const powerMultiplier = 1 + (missingHp * 0.8); // Up to 1.8x power based on missing HP
+      
+      const currentForm = this.forms[this.currentFormIndex];
+      
+      // Form-specific power scaling
+      if (currentForm === 'aggression') {
+        this.addEffect('massMultiplier', 1.8 * powerMultiplier, 90);
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        if (speed > 0) { this.vx *= 1.2; this.vy *= 1.2; }
+      } else if (currentForm === 'mobility') {
+        this.addEffect('speedBoost', 15 * powerMultiplier, 90);
+        this.addEffect('dragReduction', 0.4, 90);
+      } else if (currentForm === 'precision') {
+        this.addEffect('predictionBoost', 1.5 * powerMultiplier, 90);
+      }
+      
+      // Lock current form for 1.5 seconds
+      this.formLocked = true;
+      this.formLockDuration = 90;
+      
+      this.cooldowns.skill2 = 126;
     }
   }
 
@@ -1479,12 +1588,21 @@ class Fighter {
       this.addEffect('curveForce', 0.12, 180);
       this.addEffect('speedBoost', 15, 180);
     } else if (this.shapeType === 'dodecahedron') {
-      this.personality.aggression = Math.min(10, this.personality.aggression + 3);
-      this.personality.mobility   = Math.min(10, this.personality.mobility   + 3);
-      this.personality.precision  = Math.min(10, this.personality.precision  + 3);
-      this.addEffect('massMultiplier', 2, 200);
-      this.addEffect('speedBoost', 15, 200);
-      this.addEffect('adaptiveStats', 1, 200);
+      // Transform: Perfect Adaptation Window (3 seconds)
+      this.perfectAdaptation = true;
+      this.perfectAdaptationDuration = 180; // 3 seconds
+      
+      // Gain all bonuses at once
+      this.addEffect('massMultiplier', 1.5, 180);
+      this.addEffect('speedBoost', 15, 180);
+      this.addEffect('predictionBoost', 2, 180);
+      
+      // Pause form cycle
+      this.formTimer = this.formDuration; // Keep current form
+      
+      // After it ends: slowed by 30% for 1 second
+      this.adaptationFatigue = true;
+      this.adaptationFatigueDuration = 60;
     }
     this.ultimateCharge = 0;
     this.cooldowns.ultimate = 300;
@@ -1675,6 +1793,40 @@ class Fighter {
       const midY = (trail.startY + trail.endY) / 2 + Math.sin(trail.curveAngle + Math.PI/2) * 30;
       ctx.quadraticCurveTo(midX, midY, trail.endX, trail.endY);
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw Dodecahedron form lock indicator
+    if (this.shapeType === 'dodecahedron' && this.formLocked) {
+      const lockAlpha = this.formLockDuration / 90;
+      const currentForm = this.forms[this.currentFormIndex];
+      let lockColor = '#33ff8c';
+      if (currentForm === 'aggression') lockColor = '#ff6600';
+      else if (currentForm === 'mobility') lockColor = '#00aaff';
+      else if (currentForm === 'precision') lockColor = '#ffdd00';
+      
+      ctx.save();
+      ctx.globalAlpha = lockAlpha * 0.5;
+      ctx.strokeStyle = lockColor;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = lockColor;
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 25, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Lock segments
+      ctx.globalAlpha = lockAlpha * 0.7;
+      ctx.lineWidth = 4;
+      const segments = 4;
+      for (let i = 0; i < segments; i++) {
+        const segAngle = (Date.now() / 80) + (i * Math.PI * 2 / segments);
+        const startAngle = segAngle - 0.25;
+        const endAngle = segAngle + 0.25;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius + 25, startAngle, endAngle);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -2834,6 +2986,231 @@ class Fighter {
           ctx.arc(this.x, this.y, this.orbitalZone.radius * 0.7, flowAngle, flowAngle + 1);
           ctx.stroke();
         }
+      }
+      
+      ctx.restore();
+    }
+
+    // Dodecahedron Adaptive Poly-Core weapon (drawn on top)
+    if (this.shapeType === 'dodecahedron') {
+      ctx.save();
+      
+      const currentForm = this.forms[this.currentFormIndex];
+      const coreSize = this.radius * 0.5;
+      
+      // Base form: floating multi-faced geometric core
+      const faceCount = 6;
+      const rotation = Date.now() / 500;
+      
+      // Core glow based on form
+      let coreColor = '#33ff8c'; // Default green
+      let glowColor = '#00cc66';
+      if (currentForm === 'aggression') {
+        coreColor = '#ff6600';
+        glowColor = '#ff4400';
+      } else if (currentForm === 'mobility') {
+        coreColor = '#00aaff';
+        glowColor = '#0088ff';
+      } else if (currentForm === 'precision') {
+        coreColor = '#ffdd00';
+        glowColor = '#ffaa00';
+      }
+      
+      // Draw core
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = coreColor;
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 20;
+      
+      ctx.beginPath();
+      for (let i = 0; i < faceCount; i++) {
+        const angle = (Math.PI * 2 / faceCount) * i + rotation;
+        const px = this.x + Math.cos(angle) * coreSize;
+        const py = this.y + Math.sin(angle) * coreSize;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      
+      // Inner core
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, coreSize * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Orbiting fragments
+      const fragmentCount = 4;
+      for (let i = 0; i < fragmentCount; i++) {
+        const fragAngle = (Date.now() / 300) + (i * Math.PI * 2 / fragmentCount);
+        const fragX = this.x + Math.cos(fragAngle) * (coreSize + 15);
+        const fragY = this.y + Math.sin(fragAngle) * (coreSize + 15);
+        
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = coreColor;
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(fragX, fragY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // FORM-BASED WEAPON SHIFTS
+      if (currentForm === 'aggression') {
+        // Spike Array: faces extend into sharp spikes
+        const spikeCount = 8;
+        for (let i = 0; i < spikeCount; i++) {
+          const spikeAngle = (Math.PI * 2 / spikeCount) * i + rotation;
+          const spikeLength = 20 + Math.sin(Date.now() / 100 + i) * 5;
+          const spikeX = this.x + Math.cos(spikeAngle) * (coreSize + spikeLength);
+          const spikeY = this.y + Math.sin(spikeAngle) * (coreSize + spikeLength);
+          
+          ctx.globalAlpha = 0.8;
+          ctx.strokeStyle = '#ff6600';
+          ctx.lineWidth = 3;
+          ctx.shadowColor = '#ff4400';
+          ctx.shadowBlur = 15;
+          ctx.beginPath();
+          ctx.moveTo(this.x + Math.cos(spikeAngle) * coreSize, this.y + Math.sin(spikeAngle) * coreSize);
+          ctx.lineTo(spikeX, spikeY);
+          ctx.stroke();
+        }
+      } else if (currentForm === 'mobility') {
+        // Blade Stream: core stretches into aerodynamic shape
+        const angle = Math.atan2(this.vy, this.vx);
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        const stretch = Math.min(speed * 2, 30);
+        
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#00aaff';
+        ctx.shadowColor = '#0088ff';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y, coreSize + stretch, coreSize * 0.6, angle, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Afterimage trail
+        if (speed > 5) {
+          ctx.globalAlpha = 0.3;
+          ctx.fillStyle = '#00aaff';
+          ctx.beginPath();
+          ctx.ellipse(this.x - this.vx * 2, this.y - this.vy * 2, coreSize + stretch * 0.8, coreSize * 0.5, angle, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (currentForm === 'precision') {
+        // Edge Prism: clean, sharp, symmetrical targeting shape
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#ffdd00';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#ffaa00';
+        ctx.shadowBlur = 15;
+        
+        // Pointed targeting shape
+        ctx.beginPath();
+        ctx.moveTo(this.x + Math.cos(rotation) * (coreSize + 25), this.y + Math.sin(rotation) * (coreSize + 25));
+        ctx.lineTo(this.x + Math.cos(rotation + 2.5) * coreSize, this.y + Math.sin(rotation + 2.5) * coreSize);
+        ctx.lineTo(this.x + Math.cos(rotation - 2.5) * coreSize, this.y + Math.sin(rotation - 2.5) * coreSize);
+        ctx.closePath();
+        ctx.stroke();
+        
+        // Laser-like targeting lines
+        if (this.target) {
+          const targetDx = this.target.x - this.x;
+          const targetDy = this.target.y - this.y;
+          const targetDist = Math.sqrt(targetDx * targetDx + targetDy * targetDy);
+          
+          if (targetDist > 0) {
+            ctx.globalAlpha = 0.4;
+            ctx.strokeStyle = '#ffdd00';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + (targetDx / targetDist) * 100, this.y + (targetDy / targetDist) * 100);
+            ctx.stroke();
+          }
+        }
+      }
+      
+      // During Adapt (Skill 1): rapid reshaping flash
+      if (this.cooldowns.skill1 > 135) {
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = coreColor;
+        ctx.shadowBlur = 30;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreSize + 30, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // During Face (Skill 2): core cracks open with unstable glow
+      if (this.cooldowns.skill2 > 110) {
+        const hpPercent = this.hp / this.maxHp;
+        const intensity = 1 - hpPercent;
+        const crackColor = intensity > 0.5 ? '#ff4400' : '#33ff8c';
+        
+        ctx.globalAlpha = intensity * 0.6;
+        ctx.strokeStyle = crackColor;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = crackColor;
+        ctx.shadowBlur = 25;
+        
+        // Crack lines
+        for (let i = 0; i < 3; i++) {
+          const crackAngle = (Math.PI * 2 / 3) * i + rotation;
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y);
+          ctx.lineTo(this.x + Math.cos(crackAngle) * (coreSize + 10), this.y + Math.sin(crackAngle) * (coreSize + 10));
+          ctx.stroke();
+        }
+      }
+      
+      // During Transform (Ultimate): all forms overlap
+      if (this.perfectAdaptation) {
+        // Multiple rotating layers
+        for (let layer = 0; layer < 3; layer++) {
+          const layerRotation = rotation + (layer * Math.PI / 3);
+          const layerSize = coreSize + (layer * 10);
+          const layerColor = ['#ff6600', '#00aaff', '#ffdd00'][layer];
+          
+          ctx.globalAlpha = 0.4;
+          ctx.strokeStyle = layerColor;
+          ctx.lineWidth = 2;
+          ctx.shadowColor = layerColor;
+          ctx.shadowBlur = 20;
+          
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI * 2 / 6) * i + layerRotation;
+            const px = this.x + Math.cos(angle) * layerSize;
+            const py = this.y + Math.sin(angle) * layerSize;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+        
+        // Central glow
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#33ff8c';
+        ctx.shadowBlur = 35;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreSize * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // After Transform: unstable core (visual fatigue)
+      if (this.adaptationFatigue) {
+        const fatigueAlpha = this.adaptationFatigueDuration / 60;
+        ctx.globalAlpha = fatigueAlpha * 0.4;
+        ctx.fillStyle = '#666666';
+        ctx.shadowColor = '#444444';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreSize * 1.2, 0, Math.PI * 2);
+        ctx.fill();
       }
       
       ctx.restore();
