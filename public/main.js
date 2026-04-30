@@ -1789,7 +1789,12 @@ class Fighter {
     const adjustedAggression = this.getAdjustedAggression(p.aggression / 10);
     const adjustedThreshold = this.skillThresholdMultiplier;
     const adjustedDefensive = this.getAdjustedDefensivePriority(1);
-    
+
+    // Apply adjusted thresholds based on combat mode
+    const distThreshold = this.getAdjustedThreshold(1);
+    const speedThreshold = this.getAdjustedThreshold(1);
+    const hpThreshold = this.getAdjustedThreshold(50);
+
     // Bounce state modifiers for skill usage
     let skillUsageModifier = 1.0;
     if (this.bounceState === 'NONE') {
@@ -1808,18 +1813,13 @@ class Fighter {
     if (['circle', 'square', 'crescent'].includes(this.shapeType) && this.combatMode === 'chaos') {
       ultimateThreshold = 7; // Lower requirement in chaos
     }
-    
+
     if (this.ultimateCharge >= ultimateThreshold && this.cooldowns.ultimate === 0 && rand < ultimateChance) {
       this.useUltimate(); return;
     }
-    
+
     if (this.cooldowns.skill1 === 0 && rand < baseChance) {
       const aggressionBonus = adjustedAggression;
-      
-      // Apply adjusted thresholds based on combat mode
-      const distThreshold = this.getAdjustedThreshold(1);
-      const speedThreshold = this.getAdjustedThreshold(1);
-      const hpThreshold = this.getAdjustedThreshold(50);
       
       if (this.shapeType === 'circle' && speed > 5 * (1 - p.mobility / 20)) this.useSkill1();
       else if (this.shapeType === 'triangle') {
