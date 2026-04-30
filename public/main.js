@@ -288,6 +288,12 @@ class Fighter {
     this.adaptationFatigue = false;
     this.adaptationFatigueDuration = 0;
 
+    // Dynamic Awareness System
+    this.combatMode = 'duel'; // 'duel', 'skirmish', 'chaos'
+    this.aggressionMultiplier = 1.0;
+    this.defensiveUrgency = 0.7;
+    this.skillThresholdMultiplier = 1.0;
+
     // Shape-specific physics properties
     this.initShapePhysics();
 
@@ -315,6 +321,66 @@ class Fighter {
       const variation = 1 + (Math.random() * 0.1 - 0.05);
       this.personality[stat] = Math.max(1, Math.min(10, Math.round(base[stat] * variation)));
     }
+  }
+
+  // Dynamic Awareness System
+  updateCombatMode(allFighters) {
+    // Count alive enemies and nearby enemies
+    let enemyCount = 0;
+    let nearEnemies = 0;
+    let closestDist = Infinity;
+    
+    for (const f of allFighters) {
+      if (f === this || f.hp <= 0) continue;
+      enemyCount++;
+      const dist = Math.sqrt((f.x - this.x) ** 2 + (f.y - this.y) ** 2);
+      if (dist < closestDist) closestDist = dist;
+      if (dist < 180) nearEnemies++;
+    }
+    
+    // Determine combat mode
+    if (enemyCount === 1) {
+      this.combatMode = 'duel';
+    } else if (nearEnemies >= 2) {
+      this.combatMode = 'chaos';
+    } else {
+      this.combatMode = 'skirmish';
+    }
+    
+    // Apply global modifiers based on mode
+    this.applyCombatModifiers();
+  }
+
+  applyCombatModifiers() {
+    switch (this.combatMode) {
+      case 'duel':
+        this.aggressionMultiplier = 1.0;
+        this.defensiveUrgency = 0.7;
+        this.skillThresholdMultiplier = 1.0;
+        break;
+      case 'skirmish':
+        this.aggressionMultiplier = 0.8;
+        this.defensiveUrgency = 1.0;
+        this.skillThresholdMultiplier = 1.2;
+        break;
+      case 'chaos':
+        this.aggressionMultiplier = 0.6;
+        this.defensiveUrgency = 1.3;
+        this.skillThresholdMultiplier = 1.5;
+        break;
+    }
+  }
+
+  getAdjustedThreshold(baseThreshold) {
+    return baseThreshold * this.skillThresholdMultiplier;
+  }
+
+  getAdjustedAggression(baseAggression) {
+    return baseAggression * this.aggressionMultiplier;
+  }
+
+  getAdjustedDefensivePriority(basePriority) {
+    return basePriority * this.defensiveUrgency;
   }
 
   initShapePhysics() {
@@ -1613,31 +1679,84 @@ class Fighter {
     const p = this.personality;
     const chaosFactor = p.chaos / 10;
     const rand = Math.random();
-    const baseChance = 0.02 * (1 + chaosFactor * 0.5);
+    
+    // Apply Dynamic Awareness System modifiers
+    const adjustedAggression = this.getAdjustedAggression(p.aggression / 10);
+    const adjustedThreshold = this.skillThresholdMultiplier;
+    const adjustedDefensive = this.getAdjustedDefensivePriority(1);
+    
+    const baseChance = 0.02 * (1 + chaosFactor * 0.5) * this.aggressionMultiplier;
     const ultimateChance = 0.01 * (1 + p.skillDiscipline / 20);
 
-    if (this.ultimateCharge >= 10 && this.cooldowns.ultimate === 0 && rand < ultimateChance) {
+    // Ultimate: Controllers use earlier in chaos mode
+    let ultimateThreshold = 10;
+    if (['circle', 'square', 'crescent'].includes(this.shapeType) && this.combatMode === 'chaos') {
+      ultimateThreshold = 7; // Lower requirement in chaos
+    }
+    
+    if (this.ultimateCharge >= ultimateThreshold && this.cooldowns.ultimate === 0 && rand < ultimateChance) {
       this.useUltimate(); return;
     }
+    
     if (this.cooldowns.skill1 === 0 && rand < baseChance) {
-      const aggressionBonus = p.aggression / 10;
+      const aggressionBonus = adjustedAggression;
+      
+      // Apply adjusted thresholds based on combat mode
+      const distThreshold = this.getAdjustedThreshold(1);
+      const speedThreshold = this.getAdjustedThreshold(1);
+      const hpThreshold = this.getAdjustedThreshold(50);
+      
       if (this.shapeType === 'circle' && speed > 5 * (1 - p.mobility / 20)) this.useSkill1();
-      else if (this.shapeType === 'triangle' && distToTarget > 150 * (1 - p.greed / 20)) this.useSkill1();
+      else if (this.shapeType === 'triangle') {
+        // Assassins: require higher speed in chaos mode
+        const speedReq = this.combatMode === 'chaos' ? 12 : 10;
+        if (distToTarget > 150 * (1 - p.greed / 20) && speed > speedReq) this.useSkill1();
+      }
       else if (this.shapeType === 'square' && rand < 0.5 * aggressionBonus) this.useSkill1();
-      else if (this.shapeType === 'oval' && speed < 8) this.useSkill1();
-      else if (this.shapeType === 'hexagon' && distToTarget < 80) this.useSkill1();
+      else if (this.shapeType === 'oval') {
+        // Speedsters: prioritize Drift more than Speed in chaos mode
+        if (this.combatMode === 'chaos' && this.cooldowns.skill2 === 0) {
+          // Skip Speed, use Drift instead (handled in skill2)
+        } else if (speed < 8) this.useSkill1();
+      }
+      else if (this.shapeType === 'hexagon' && distToTarget < 80 * distThreshold) this.useSkill1();
       else if (this.shapeType === 'spiral' && rand < 0.03) this.useSkill1();
-      else if (this.shapeType === 'rhombus' && distToTarget > 120) this.useSkill1();
-      else if (this.shapeType === 'star' && distToTarget < 200) this.useSkill1();
-      else if (this.shapeType === 'heart' && this.hp < 50) this.useSkill1();
-      else if (this.shapeType === 'diamond' && distToTarget > 100) this.useSkill1();
+      else if (this.shapeType === 'rhombus' && distToTarget > 120 * distThreshold) this.useSkill1();
+      else if (this.shapeType === 'star') {
+        // Burst DPS: require stacks >= 2 in chaos mode
+        if (this.combatMode === 'chaos' && this.speedStacks < 2) {
+          // Don't use Burst
+        } else if (distToTarget < 200 * distThreshold) this.useSkill1();
+      }
+      else if (this.shapeType === 'heart') {
+        // Survivors: panic mode in chaos (heal at 80% instead of 70%)
+        const healThreshold = this.combatMode === 'chaos' ? 80 : 50;
+        if (this.hp < healThreshold * adjustedDefensive) this.useSkill1();
+      }
+      else if (this.shapeType === 'diamond') {
+        // Precision: increase tolerance in chaos mode (less strict)
+        const distReq = this.combatMode === 'chaos' ? 80 : 100;
+        if (distToTarget > distReq * distThreshold) this.useSkill1();
+      }
       else if (this.shapeType === 'crescent' && rand < 0.025) this.useSkill1();
-      else if (this.shapeType === 'dodecahedron' && rand < 0.015) this.useSkill1();
+      else if (this.shapeType === 'dodecahedron') {
+        // Adaptive: bias toward Mobility form 60% of time in chaos mode
+        if (this.combatMode === 'chaos' && Math.random() < 0.6) {
+          // Force skip to Mobility form
+          if (!this.formLocked) {
+            while (this.forms[this.currentFormIndex] !== 'mobility') {
+              this.currentFormIndex = (this.currentFormIndex + 1) % this.forms.length;
+            }
+          }
+        }
+        if (rand < 0.015) this.useSkill1();
+      }
     }
+    
     if (this.cooldowns.skill2 === 0 && rand < baseChance) {
       if (this.shapeType === 'circle') this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
-      else if (this.shapeType === 'triangle' && distToTarget < 100 * (1 + p.greed / 10)) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
-      else if (this.shapeType === 'square' && speed > 6 * (1 - p.fear / 20)) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      else if (this.shapeType === 'triangle' && distToTarget < 100 * (1 + p.greed / 10) * adjustedThreshold) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
+      else if (this.shapeType === 'square' && speed > 6 * (1 - p.fear / 20) * speedThreshold) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
       else if (['oval','hexagon','spiral','rhombus','star','heart','diamond','crescent','dodecahedron'].includes(this.shapeType)) this.useSkill2(arenaLeft, arenaRight, arenaTop, arenaBottom);
     }
   }
@@ -4201,12 +4320,19 @@ function gameLoop() {
         hitPauseTimer--;
         if (hitPauseTimer % 2 === 0) {
           handleCollisions(fighters);
-          for (let fighter of fighters) { if (fighter.hp > 0) fighter.update(fighters); }
+          for (let fighter of fighters) { if (fighter.hp > 0) {
+            fighter.updateCombatMode(fighters);
+            fighter.update(fighters);
+          }}
         }
         for (let fighter of fighters) { if (fighter.hp > 0) fighter.draw(); }
       } else {
         handleCollisions(fighters);
-        for (let fighter of fighters) { if (fighter.hp > 0) { fighter.update(fighters); fighter.draw(); } }
+        for (let fighter of fighters) { if (fighter.hp > 0) {
+          fighter.updateCombatMode(fighters);
+          fighter.update(fighters);
+          fighter.draw();
+        }}
       }
       updateAndDrawParticles();
     }
