@@ -241,6 +241,13 @@ class Fighter {
     this.abilityFlash = 0;
     this.collisionKnockbackCooldown = 0; // Prevents AI movement after collision knockback
 
+    // Star-specific: speed stacking for Burst ability
+    this.speedStacks = 0;
+    this.maxSpeedStacks = 5;
+
+    // Star-specific: impact crater zones for Beam ability
+    this.impactCraters = [];
+
     // Shape-specific physics properties
     this.initShapePhysics();
 
@@ -294,6 +301,12 @@ class Fighter {
   }
 
   update(fighters) {
+    // Update impact craters (Star-specific)
+    this.impactCraters = this.impactCraters.filter(crater => {
+      crater.duration--;
+      return crater.duration > 0;
+    });
+
     this.updateActiveEffects();
     if (this.cooldowns.skill1 > 0) this.cooldowns.skill1--;
     if (this.cooldowns.skill2 > 0) this.cooldowns.skill2--;
@@ -607,6 +620,31 @@ class Fighter {
         // Gravity slam: converts attraction into slam detonation
         // This effect doesn't modify velocity directly
         // The actual slam is handled in the collision logic
+      } else if (effect.type === 'explosivePulses') {
+        // Nova: explosive knockback pulses every pulseInterval frames
+        if (effect.duration % effect.value.pulseInterval === 0) {
+          // Create pulse visual
+          spawnParticles(this.x, this.y, '#ffaa00', 20, {
+            minSpeed: 5, maxSpeed: 12, shape: 'ring', glow: true,
+            minDecay: 0.03, decayRange: 0.02
+          });
+          spawnParticles(this.x, this.y, '#ff4400', 15, {
+            minSpeed: 3, maxSpeed: 8, shape: 'star', glow: true,
+            minDecay: 0.04, decayRange: 0.02
+          });
+          // Apply knockback to nearby fighters
+          for (let fighter of fighters) {
+            if (fighter === this) continue;
+            const dx = fighter.x - this.x;
+            const dy = fighter.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < effect.value.range && dist > 0) {
+              const knockbackForce = effect.value.knockback * (1 - dist / effect.value.range);
+              fighter.vx += (dx / dist) * knockbackForce;
+              fighter.vy += (dy / dist) * knockbackForce;
+            }
+          }
+        }
       }
       return effect.duration > 0;
     });
@@ -825,31 +863,40 @@ class Fighter {
 
       case 'star':
         if (skillKey === 'skill1') {
-          // Star burst: all-direction stars
-          spawnParticles(x, y, '#ff3333', 25, {
-            minSpeed: 4, maxSpeed: 12, shape: 'star', glow: true,
+          // Burst: flare explosions with star-shaped flashes
+          const fwdAngle = Math.atan2(this.vy, this.vx);
+          spawnParticles(x, y, '#ffaa00', 20, {
+            angle: fwdAngle, spread: 0.8,
+            minSpeed: 5, maxSpeed: 14, shape: 'star', glow: true,
             minDecay: 0.03, decayRange: 0.02
           });
+          spawnParticles(x, y, '#ff4400', 15, {
+            minSpeed: 3, maxSpeed: 8, shape: 'circle', glow: true,
+            minDecay: 0.04, decayRange: 0.02
+          });
         } else if (skillKey === 'skill2') {
-          // Meteor slam: downward red shower
-          spawnParticles(x, y, '#ff6600', 20, {
-            angle: Math.PI / 2, spread: 1.0,
-            minSpeed: 5, maxSpeed: 12, shape: 'star', glow: true,
-            gravity: 0.2, minDecay: 0.02, decayRange: 0.03
-          });
-        } else {
-          // Nova ultimate: massive star explosion
-          spawnParticles(x, y, '#ff0000', 50, {
-            minSpeed: 8, maxSpeed: 20, shape: 'star', glow: true,
-            minDecay: 0.015, decayRange: 0.02
-          });
-          spawnParticles(x, y, '#ffff00', 30, {
-            minSpeed: 4, maxSpeed: 12, shape: 'circle', glow: true,
+          // Beam: impact crater creation visual
+          spawnParticles(x, y, '#ff6600', 25, {
+            minSpeed: 2, maxSpeed: 6, shape: 'ring', glow: true,
             minDecay: 0.02, decayRange: 0.02
           });
-          spawnParticles(x, y, '#ffffff', 20, {
-            minSpeed: 6, maxSpeed: 16, shape: 'ring', glow: true,
+          spawnParticles(x, y, '#ffaa00', 20, {
+            minSpeed: 4, maxSpeed: 10, shape: 'star', glow: true,
+            minDecay: 0.03, decayRange: 0.02
+          });
+        } else {
+          // Nova: explosive knockback pulses
+          spawnParticles(x, y, '#ff4400', 40, {
+            minSpeed: 6, maxSpeed: 16, shape: 'star', glow: true,
+            minDecay: 0.02, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#ffaa00', 30, {
+            minSpeed: 4, maxSpeed: 12, shape: 'ring', glow: true,
             minDecay: 0.025, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#ffffff', 25, {
+            minSpeed: 8, maxSpeed: 18, shape: 'circle', glow: true,
+            minDecay: 0.015, decayRange: 0.02
           });
         }
         break;
@@ -1056,8 +1103,14 @@ class Fighter {
       this.addEffect('gravitySlow', 0.4, 120); // 40% slow to pulled enemies for 2 seconds
       this.cooldowns.skill1 = 140;
     } else if (this.shapeType === 'star') {
+      // Burst: gains stacking speed per hit (consumes stacks for burst)
       const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-      if (speed > 0) { this.vx *= 2.5; this.vy *= 2.5; }
+      const stackBonus = 1 + (this.speedStacks * 0.15); // 15% bonus per stack
+      if (speed > 0) {
+        this.vx *= 2.0 * stackBonus;
+        this.vy *= 2.0 * stackBonus;
+      }
+      this.speedStacks = 0; // Consume stacks on use
       this.cooldowns.skill1 = 110;
     } else if (this.shapeType === 'heart') {
       const angle = Math.atan2(this.vy, this.vx);
@@ -1172,7 +1225,23 @@ class Fighter {
       }
       this.cooldowns.skill2 = 95;
     } else if (this.shapeType === 'star') {
-      this.addEffect('massMultiplier', 4, 45); this.vy += 8; this.cooldowns.skill2 = 115;
+      // Beam: leaves impact crater (temporary slow zone)
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (speed > 0) {
+        const angle = Math.atan2(this.vy, this.vx);
+        this.vx += Math.cos(angle) * 10;
+        this.vy += Math.sin(angle) * 10;
+      }
+      // Create impact crater at current position
+      this.impactCraters.push({
+        x: this.x,
+        y: this.y,
+        radius: 80,
+        slowAmount: 0.5,
+        duration: 180, // 3 seconds
+        maxDuration: 180
+      });
+      this.cooldowns.skill2 = 115;
     } else if (this.shapeType === 'heart') {
       this.addEffect('massMultiplier', 2, 75); this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'diamond') {
@@ -1224,8 +1293,11 @@ class Fighter {
       this.addEffect('gravitySlam', { range: 150, damage: 15, knockback: 12 }, 120); // Gravity slam for 2 seconds
       this.vx *= 1.8; this.vy *= 1.8;
     } else if (this.shapeType === 'star') {
-      this.vx *= 3.0; this.vy *= 3.0;
-      this.addEffect('speedBoost', 30, 120); this.addEffect('massMultiplier', 2, 120);
+      // Nova: explosive knockback pulses
+      this.vx *= 2.5; this.vy *= 2.5;
+      this.addEffect('explosivePulses', { range: 150, knockback: 8, pulseInterval: 30 }, 180); // 3 seconds of pulses
+      this.addEffect('speedBoost', 25, 120);
+      this.addEffect('massMultiplier', 1.5, 120);
     } else if (this.shapeType === 'heart') {
       this.hp = Math.min(this.maxHp, this.hp + 30);
       this.addEffect('regeneration', 0.5, 180); this.addEffect('speedBoost', 20, 180);
@@ -1342,6 +1414,28 @@ class Fighter {
       ctx.shadowBlur = 20;
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius + 14 + (20 - this.wallBounceFlash) * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw impact craters (Star-specific)
+    for (const crater of this.impactCraters) {
+      const alpha = crater.duration / crater.maxDuration;
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.3;
+      ctx.fillStyle = '#ff6600';
+      ctx.shadowColor = '#ffaa00';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(crater.x, crater.y, crater.radius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Crater rim
+      ctx.globalAlpha = alpha * 0.5;
+      ctx.strokeStyle = '#ffaa00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(crater.x, crater.y, crater.radius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -2186,6 +2280,87 @@ class Fighter {
       
       ctx.restore();
     }
+
+    // Star Radiant Gauntlets weapon (drawn on top)
+    if (this.shapeType === 'star') {
+      ctx.save();
+      
+      const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      const angle = Math.atan2(this.vy, this.vx);
+      const pulse = 0.6 + Math.sin(Date.now() / 80) * 0.3;
+      
+      // Two glowing gauntlets positioned on sides of the star
+      const gauntletOffset = this.radius + 12;
+      const leftAngle = angle - Math.PI / 2;
+      const rightAngle = angle + Math.PI / 2;
+      
+      const leftX = this.x + Math.cos(leftAngle) * gauntletOffset;
+      const leftY = this.y + Math.sin(leftAngle) * gauntletOffset;
+      const rightX = this.x + Math.cos(rightAngle) * gauntletOffset;
+      const rightY = this.y + Math.sin(rightAngle) * gauntletOffset;
+      
+      // Draw gauntlets as glowing orbs with star-shaped flashes
+      for (const [gx, gy] of [[leftX, leftY], [rightX, rightY]]) {
+        // Outer glow
+        ctx.globalAlpha = pulse * 0.5;
+        ctx.fillStyle = '#ffaa00';
+        ctx.shadowColor = '#ff6600';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.arc(gx, gy, 10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Inner core
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#ffaa00';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(gx, gy, 6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Star-shaped flash on high speed or during abilities
+        if (speed > 8 || this.cooldowns.skill1 < 90 || this.cooldowns.skill2 < 90) {
+          ctx.globalAlpha = pulse * 0.8;
+          ctx.fillStyle = '#ff4400';
+          ctx.shadowColor = '#ffaa00';
+          ctx.shadowBlur = 25;
+          
+          // Draw small star shape
+          ctx.beginPath();
+          for (let k = 0; k < 5; k++) {
+            const oa = (Math.PI * 2 / 5) * k - Math.PI / 2;
+            const ia = oa + Math.PI / 5;
+            if (k === 0) ctx.moveTo(gx + Math.cos(oa) * 8, gy + Math.sin(oa) * 8);
+            else ctx.lineTo(gx + Math.cos(oa) * 8, gy + Math.sin(oa) * 8);
+            ctx.lineTo(gx + Math.cos(ia) * 3, gy + Math.sin(ia) * 3);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      
+      // Speed stacks indicator (small stars around the body)
+      if (this.speedStacks > 0) {
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#ffaa00';
+        ctx.shadowColor = '#ff6600';
+        ctx.shadowBlur = 12;
+        
+        for (let i = 0; i < this.speedStacks; i++) {
+          const stackAngle = (Date.now() / 200) + (i * Math.PI * 2 / this.maxSpeedStacks);
+          const stackRadius = this.radius + 18;
+          const sx = this.x + Math.cos(stackAngle) * stackRadius;
+          const sy = this.y + Math.sin(stackAngle) * stackRadius;
+          
+          ctx.beginPath();
+          ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      
+      ctx.restore();
+    }
   }
 
   drawShape(x, y, size, color, alpha) {
@@ -2365,6 +2540,20 @@ function handleCollisions(fighters) {
         }
       }
     }
+    // Star impact craters: apply slow to enemies in crater zones
+    for (let crater of f1.impactCraters) {
+      for (let j = 0; j < fighters.length; j++) {
+        if (i === j) continue;
+        const f2 = fighters[j];
+        if (f2.hp <= 0) continue;
+        const dx = f2.x - crater.x; const dy = f2.y - crater.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < crater.radius) {
+          // Apply slow effect
+          f2.addEffect('slow', crater.slowAmount, 30);
+        }
+      }
+    }
     // Vortex Pull: pull enemies toward random direction
     const vortexEffect = f1.activeEffects.find(e => e.type === 'vortexPull');
     if (vortexEffect && vortexEffect.value) {
@@ -2539,6 +2728,10 @@ function handleCollisions(fighters) {
                 f2.ultimateCharge = Math.min(f2.ultimateCharge + chargeAmount, 10);
                 // Attacker now needs to wall-bounce before next damage
                 f2.needsWallBounce = true;
+                // Star: gain speed stack on successful hit
+                if (f2.shapeType === 'star') {
+                  f2.speedStacks = Math.min(f2.speedStacks + 1, f2.maxSpeedStacks);
+                }
                 spawnParticles(contactX, contactY, f2.color, 12, {
                   minSpeed: 3, maxSpeed: 8, shape: 'circle', glow: true,
                   minDecay: 0.04, decayRange: 0.03
