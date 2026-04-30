@@ -248,6 +248,13 @@ class Fighter {
     // Star-specific: impact crater zones for Beam ability
     this.impactCraters = [];
 
+    // Heart-specific: invulnerability tracking for Love ability
+    this.invulnerabilityFrames = 0;
+
+    // Heart-specific: knockback reflection for Pulse ability
+    this.knockbackReflection = false;
+    this.reflectionDuration = 0;
+
     // Shape-specific physics properties
     this.initShapePhysics();
 
@@ -306,6 +313,19 @@ class Fighter {
       crater.duration--;
       return crater.duration > 0;
     });
+
+    // Update invulnerability frames (Heart-specific)
+    if (this.invulnerabilityFrames > 0) {
+      this.invulnerabilityFrames--;
+    }
+
+    // Update knockback reflection (Heart-specific)
+    if (this.knockbackReflection) {
+      this.reflectionDuration--;
+      if (this.reflectionDuration <= 0) {
+        this.knockbackReflection = false;
+      }
+    }
 
     this.updateActiveEffects();
     if (this.cooldowns.skill1 > 0) this.cooldowns.skill1--;
@@ -903,31 +923,43 @@ class Fighter {
 
       case 'heart':
         if (skillKey === 'skill1') {
-          // Heal: rising pink hearts/circles
-          spawnParticles(x, y, '#ff66aa', 18, {
+          // Heal: cleanses debuffs with cleansing particles
+          spawnParticles(x, y, '#ff66aa', 20, {
             angle: -Math.PI / 2, spread: 1.5,
             minSpeed: 1, maxSpeed: 5, shape: 'circle', glow: true,
             gravity: -0.05, minDecay: 0.02, decayRange: 0.03
           });
-          spawnParticles(x, y, '#ffffff', 10, {
+          spawnParticles(x, y, '#ffffff', 15, {
             minSpeed: 1, maxSpeed: 3, shape: 'ring', glow: true,
             minDecay: 0.03, decayRange: 0.02
           });
+          spawnParticles(x, y, '#ffaa88', 12, {
+            minSpeed: 2, maxSpeed: 6, shape: 'spark', glow: true,
+            minDecay: 0.04, decayRange: 0.02
+          });
         } else if (skillKey === 'skill2') {
-          // Pulse: pink concentric rings
-          spawnParticles(x, y, '#ff44aa', 24, {
-            minSpeed: 2, maxSpeed: 7, shape: 'ring', glow: true,
-            minDecay: 0.025, decayRange: 0.025
+          // Pulse: knockback reflection with outward rings
+          spawnParticles(x, y, '#ff44aa', 30, {
+            minSpeed: 3, maxSpeed: 8, shape: 'ring', glow: true,
+            minDecay: 0.025, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#ff88cc', 20, {
+            minSpeed: 2, maxSpeed: 6, shape: 'circle', glow: true,
+            minDecay: 0.03, decayRange: 0.02
           });
         } else {
-          // Love ultimate: pink + white explosion + heal aura
-          spawnParticles(x, y, '#ff3399', 40, {
-            minSpeed: 3, maxSpeed: 12, shape: 'circle', glow: true,
-            gravity: -0.05, minDecay: 0.015, decayRange: 0.02
+          // Love: invulnerability with protective aura
+          spawnParticles(x, y, '#ff44aa', 35, {
+            minSpeed: 2, maxSpeed: 8, shape: 'heart', glow: true,
+            minDecay: 0.02, decayRange: 0.02
+          });
+          spawnParticles(x, y, '#ff88cc', 30, {
+            minSpeed: 1, maxSpeed: 5, shape: 'circle', glow: true,
+            minDecay: 0.025, decayRange: 0.02
           });
           spawnParticles(x, y, '#ffffff', 25, {
-            minSpeed: 2, maxSpeed: 8, shape: 'ring', glow: true,
-            minDecay: 0.02, decayRange: 0.02
+            minSpeed: 3, maxSpeed: 10, shape: 'ring', glow: true,
+            minDecay: 0.015, decayRange: 0.02
           });
         }
         break;
@@ -1113,8 +1145,12 @@ class Fighter {
       this.speedStacks = 0; // Consume stacks on use
       this.cooldowns.skill1 = 110;
     } else if (this.shapeType === 'heart') {
-      const angle = Math.atan2(this.vy, this.vx);
-      this.vx = Math.cos(angle) * 6; this.vy = Math.sin(angle) * 6; this.cooldowns.skill1 = 95;
+      // Heal: heals and cleanses debuffs
+      this.hp = Math.min(this.maxHp, this.hp + 20);
+      // Remove all negative effects (debuffs)
+      const debuffTypes = ['slow', 'chaosSpin', 'gravitySlow', 'vortexPull', 'chaosZone'];
+      this.activeEffects = this.activeEffects.filter(e => !debuffTypes.includes(e.type));
+      this.cooldowns.skill1 = 95;
     } else if (this.shapeType === 'diamond') {
       if (this.target) {
         const dx = this.target.x - this.x;
@@ -1243,7 +1279,11 @@ class Fighter {
       });
       this.cooldowns.skill2 = 115;
     } else if (this.shapeType === 'heart') {
-      this.addEffect('massMultiplier', 2, 75); this.cooldowns.skill2 = 100;
+      // Pulse: reflects small knockback
+      this.knockbackReflection = true;
+      this.reflectionDuration = 120; // 2 seconds of reflection
+      this.addEffect('knockbackResistance', 0.7, 120); // 70% knockback resistance
+      this.cooldowns.skill2 = 100;
     } else if (this.shapeType === 'diamond') {
       if (this.vx !== 0 || this.vy !== 0) {
         const angle = Math.atan2(this.vy, this.vx);
@@ -1299,8 +1339,11 @@ class Fighter {
       this.addEffect('speedBoost', 25, 120);
       this.addEffect('massMultiplier', 1.5, 120);
     } else if (this.shapeType === 'heart') {
-      this.hp = Math.min(this.maxHp, this.hp + 30);
-      this.addEffect('regeneration', 0.5, 180); this.addEffect('speedBoost', 20, 180);
+      // Love: adds temporary invulnerability frames
+      this.invulnerabilityFrames = 90; // 1.5 seconds of invulnerability
+      this.hp = Math.min(this.maxHp, this.hp + 25);
+      this.addEffect('regeneration', 0.8, 180); // Stronger regeneration
+      this.addEffect('speedBoost', 15, 180);
     } else if (this.shapeType === 'diamond') {
       this.addEffect('predictionBoost', 2, 150); this.addEffect('velocityCap', 20, 150);
     } else if (this.shapeType === 'crescent') {
@@ -1437,6 +1480,51 @@ class Fighter {
       ctx.beginPath();
       ctx.arc(crater.x, crater.y, crater.radius, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw Heart invulnerability effect
+    if (this.invulnerabilityFrames > 0) {
+      const invulnAlpha = this.invulnerabilityFrames / 90;
+      ctx.save();
+      ctx.globalAlpha = invulnAlpha * 0.4;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ff88cc';
+      ctx.shadowBlur = 30;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Shield ring
+      ctx.globalAlpha = invulnAlpha * 0.6;
+      ctx.strokeStyle = '#ff66aa';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw Heart knockback reflection effect
+    if (this.knockbackReflection) {
+      const reflectAlpha = this.reflectionDuration / 120;
+      ctx.save();
+      ctx.globalAlpha = reflectAlpha * 0.3;
+      ctx.strokeStyle = '#ff44aa';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#ff88cc';
+      ctx.shadowBlur = 20;
+      
+      // Rotating shield segments
+      const segments = 4;
+      for (let i = 0; i < segments; i++) {
+        const angle = (Date.now() / 100) + (i * Math.PI * 2 / segments);
+        const startAngle = angle - 0.3;
+        const endAngle = angle + 0.3;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius + 12, startAngle, endAngle);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -2361,6 +2449,65 @@ class Fighter {
       
       ctx.restore();
     }
+
+    // Heart Pulse Core weapon (drawn on top)
+    if (this.shapeType === 'heart') {
+      ctx.save();
+      
+      const pulse = 0.5 + Math.sin(Date.now() / 120) * 0.3;
+      const coreSize = this.radius * 0.6;
+      
+      // Soft glowing center (living energy source)
+      ctx.globalAlpha = pulse * 0.6;
+      ctx.fillStyle = '#ff66aa';
+      ctx.shadowColor = '#ff44aa';
+      ctx.shadowBlur = 25;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, coreSize, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Inner bright core
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ff88cc';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, coreSize * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Emit rings when healing or buffing (during abilities)
+      if (this.cooldowns.skill1 < 90 || this.cooldowns.skill2 < 90 || this.cooldowns.ultimate < 90) {
+        const ringCount = 3;
+        for (let i = 0; i < ringCount; i++) {
+          const ringOffset = (Date.now() / 30 + i * 20) % 60;
+          const ringRadius = coreSize + ringOffset;
+          const ringAlpha = 1 - (ringOffset / 60);
+          
+          ctx.globalAlpha = ringAlpha * 0.5;
+          ctx.strokeStyle = '#ff88cc';
+          ctx.lineWidth = 2;
+          ctx.shadowColor = '#ff66aa';
+          ctx.shadowBlur = 15;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, ringRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      
+      // Expand during ultimate
+      if (this.cooldowns.ultimate < 90) {
+        const expansion = 1 + Math.sin(Date.now() / 80) * 0.2;
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#ff44aa';
+        ctx.shadowColor = '#ff66aa';
+        ctx.shadowBlur = 30;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, coreSize * expansion * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      ctx.restore();
+    }
   }
 
   drawShape(x, y, size, color, alpha) {
@@ -2665,10 +2812,21 @@ function handleCollisions(fighters) {
           const knockbackMultiplier1 = krEffect1 ? (1 - krEffect1.value) : 1;
           const knockbackMultiplier2 = krEffect2 ? (1 - krEffect2.value) : 1;
           
-          f1.vx -= nx * minKnockback * knockbackMultiplier1;
-          f1.vy -= ny * minKnockback * knockbackMultiplier1;
-          f2.vx += nx * minKnockback * knockbackMultiplier2;
-          f2.vy += ny * minKnockback * knockbackMultiplier2;
+          // Heart knockback reflection
+          let reflectedKnockback1 = 0;
+          let reflectedKnockback2 = 0;
+          
+          if (f1.knockbackReflection) {
+            reflectedKnockback1 = minKnockback * 0.5; // Reflect 50% of knockback
+          }
+          if (f2.knockbackReflection) {
+            reflectedKnockback2 = minKnockback * 0.5;
+          }
+          
+          f1.vx -= nx * minKnockback * knockbackMultiplier1 + nx * reflectedKnockback2;
+          f1.vy -= ny * minKnockback * knockbackMultiplier1 + ny * reflectedKnockback2;
+          f2.vx += nx * minKnockback * knockbackMultiplier2 + nx * reflectedKnockback1;
+          f2.vy += ny * minKnockback * knockbackMultiplier2 + ny * reflectedKnockback1;
           
           // Set collision knockback cooldown to prevent AI movement
           f1.collisionKnockbackCooldown = 30; // 0.5 seconds
@@ -2695,8 +2853,8 @@ function handleCollisions(fighters) {
             });
 
             // f1 hits f2
-            const f1CanDamage = !f1.needsWallBounce;
-            const f2CanDamage = !f2.needsWallBounce;
+            const f1CanDamage = !f1.needsWallBounce && f1.invulnerabilityFrames <= 0;
+            const f2CanDamage = !f2.needsWallBounce && f2.invulnerabilityFrames <= 0;
 
             if (luckRoll < 0.5) {
               // f2 is the "attacker" (pushes f1)
