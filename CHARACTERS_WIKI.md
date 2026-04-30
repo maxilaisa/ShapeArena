@@ -671,6 +671,226 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 | Crescent | 105 frames (~1.75s) | 100 frames (~1.67s) | 300 frames (~5s) |
 | Dodecahedron | 150 frames (~2.5s) | 126 frames (~2.1s) | 300 frames (~5s) |
 
+## AI System
+
+The AI is personality-driven, with each fighter having unique behavioral traits that influence their decision-making. The AI operates through physics-based forces rather than scripted movements.
+
+### Personality Stats
+
+Each fighter has 8 personality stats (range 1-10):
+
+#### Aggression
+- **Higher values:** More likely to pursue targets aggressively
+- **Effect:** Increases pursuit strength when not near walls
+- **Used in:** Movement decisions, skill usage frequency
+
+#### Mobility
+- **Higher values:** Better at avoiding walls and maintaining speed
+- **Effect:** Increases wall avoidance strength, affects skill conditions
+- **Used in:** Wall avoidance, skill activation conditions
+
+#### Precision
+- **Higher values:** Better at predicting enemy movement
+- **Effect:** Adds target prediction to movement (aims where enemy will be)
+- **Used in:** Movement targeting, skill activation conditions
+
+#### Chaos
+- **Higher values:** More random and unpredictable movement
+- **Effect:** Adds random offsets to movement direction
+- **Used in:** Movement decisions, skill usage frequency
+
+#### Greed
+- **Higher values:** Prefers close-range engagements
+- **Effect:** Increases pursuit strength, affects skill conditions
+- **Used in:** Movement decisions, skill activation conditions
+
+#### Fear
+- **Higher values:** More likely to retreat at low HP
+- **Effect:** Triggers retreat behavior when HP drops below threshold
+- **Used in:** Low HP movement decisions, skill activation conditions
+
+#### Revenge
+- **Higher values:** Prioritizes attacking the last fighter that hit them
+- **Effect:** Reduces effective distance to last attacker
+- **Used in:** Target selection
+
+#### SkillDiscipline
+- **Higher values:** Fewer random movement mistakes, better ultimate timing
+- **Effect:** Reduces random impulses, increases ultimate usage chance
+- **Used in:** Movement mistakes, ultimate activation
+
+### Base Personalities
+
+Each shape has fixed base personality stats with ±5% random variation per match:
+
+| Shape | Aggression | Mobility | Precision | Chaos | Greed | Fear | Revenge | SkillDiscipline |
+|-------|-----------|----------|-----------|-------|-------|------|---------|----------------|
+| Circle | 7 | 8 | 6 | 5 | 6 | 3 | 5 | 7 |
+| Triangle | 8 | 9 | 7 | 4 | 7 | 2 | 6 | 8 |
+| Square | 5 | 4 | 8 | 2 | 4 | 5 | 7 | 9 |
+| Oval | 6 | 10 | 5 | 4 | 5 | 4 | 4 | 6 |
+| Hexagon | 4 | 5 | 9 | 3 | 3 | 6 | 8 | 8 |
+| Spiral | 5 | 7 | 4 | 9 | 5 | 4 | 5 | 5 |
+| Rhombus | 6 | 6 | 7 | 6 | 8 | 3 | 9 | 7 |
+| Star | 10 | 7 | 5 | 7 | 9 | 1 | 7 | 6 |
+| Heart | 3 | 8 | 6 | 3 | 2 | 8 | 4 | 7 |
+| Diamond | 7 | 6 | 10 | 2 | 6 | 4 | 6 | 8 |
+| Crescent | 6 | 8 | 6 | 5 | 5 | 5 | 5 | 6 |
+| Dodecahedron | 6 | 6 | 7 | 4 | 5 | 5 | 5 | 10 |
+
+### AI Decision Making
+
+#### Target Selection
+- Finds nearest alive fighter
+- **Revenge modifier:** If revenge > 5, reduces effective distance to last attacker by up to 10%
+- Updates every frame
+
+#### Movement System
+
+**Wall Avoidance**
+- Detects when within 80px of arena walls
+- Applies avoidance force to move away from walls
+- Strength: 0.5 base, modified by mobility
+
+**Fear-Based Retreat**
+- Triggers when HP < (fear / 10) * maxHp
+- Only activates if fear > 3
+- Retreats away from target with strength based on HP deficit
+
+**Pursuit Behavior**
+- When not retreating and not near walls:
+  - **Pursuit strength:** 0.4 base + aggression bonus + greed bonus
+  - **Target prediction:** If precision > 5, aims where target will be
+  - **Chaos offset:** Adds random direction variation based on chaos stat
+
+**SkillDiscipline Mistakes**
+- If skillDiscipline < 5, random chance of movement error
+- Error chance: (5 - skillDiscipline) / 100 per frame
+- Adds random velocity impulse when triggered
+
+### Skill Usage
+
+#### Base Activation Chance
+- **Skill 1 & 2:** 2% base chance per frame
+- **Modified by chaos:** +0.5% per chaos point
+- **Ultimate:** 1% base chance per frame
+- **Modified by skillDiscipline:** +0.05% per skillDiscipline point
+
+#### Skill 1 Conditions
+Each shape has specific conditions for Skill 1:
+- **Circle:** Use when speed > 5 (modified by mobility)
+- **Triangle:** Use when target distance > 150 (modified by greed)
+- **Square:** Use randomly (50% * aggression chance)
+- **Oval:** Use when speed < 8
+- **Hexagon:** Use when target distance < 80
+- **Spiral:** Use randomly (3% chance)
+- **Rhombus:** Use when target distance > 120
+- **Star:** Use when target distance < 200
+- **Heart:** Use when HP < 50
+- **Diamond:** Use when target distance > 100
+- **Crescent:** Use randomly (2.5% chance)
+- **Dodecahedron:** Use randomly (1.5% chance)
+
+#### Skill 2 Conditions
+Each shape has specific conditions for Skill 2:
+- **Circle:** Always available (wall-dependent effect)
+- **Triangle:** Use when target distance < 100 (modified by greed)
+- **Square:** Use when speed > 6 (modified by fear)
+- **Oval, Hexagon, Spiral, Rhombus, Star, Heart, Diamond, Crescent, Dodecahedron:** Always available
+
+#### Ultimate Conditions
+- Requires 10 charge
+- Cooldown must be 0
+- Activation based on skillDiscipline
+- Higher skillDiscipline = more reliable ultimate usage
+
+### Shape-Specific Behavioral Biases
+
+Each shape has unique movement patterns that complement their personality:
+
+**Circle**
+- Enhanced wall avoidance (0.3 strength)
+- Prefers using walls for bounces
+
+**Triangle**
+- Disengages after close-range hits (dist < 100, speed > 5)
+- Hit-and-run playstyle
+
+**Square**
+- Resists wall avoidance (moves toward corners)
+- Corner pressure tactics
+
+**Oval**
+- Maintains minimum speed (boosts if speed < 6)
+- Constant movement
+
+**Hexagon**
+- Defensive spacing (retreats when dist < 120)
+- Zone control
+
+**Spiral**
+- Random direction changes (5% chance per frame)
+- Unpredictable movement
+
+**Rhombus**
+- Engages at long range (pursues when dist > 150)
+- Bait-and-counter tactics
+
+**Star**
+- Relentless pursuit (always adds pursuit force)
+- Aggressive pressure
+
+**Heart**
+- Evasive at low HP (retreats when HP < 60)
+- Survival focus
+
+**Diamond**
+- Predictive interception (aims at predicted position)
+- Counter-attack focus
+
+**Crescent**
+- Curved movement patterns (constant curve force)
+- Arc-based attacks
+
+**Dodecahedron**
+- Adaptive aggression (increases aggression when HP < 50)
+- Mid-fight adjustment
+
+### Effect Integration
+
+**predictionBoost**
+- Doubles prediction factor for targeting
+- Makes AI aim more accurately at moving targets
+
+**chaosSpin**
+- Adds random rotational forces to movement
+- Increases unpredictability
+
+**velocityCap**
+- Limits maximum speed
+- Prevents over-speeding, maintains control
+
+**curveForce**
+- Adds continuous curved trajectory
+- Creates arc-based movement patterns
+
+**adaptiveStats**
+- Enables temporary stat boosts
+- Allows mid-fight personality adjustment
+
+### Physics Integration
+
+All AI decisions result in physics changes:
+- **Pursuit:** Adds velocity toward target
+- **Retreat:** Adds velocity away from target
+- **Wall Avoidance:** Adds velocity away from walls
+- **Chaos:** Adds random velocity offsets
+- **Prediction:** Adjusts target position based on enemy velocity
+
+The AI never directly sets position - it only applies forces that the physics system processes, ensuring natural and emergent behavior.
+
+---
+
 ## Game Mechanics Reference
 
 ### Common Effects
