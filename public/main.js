@@ -1023,7 +1023,7 @@ class Fighter {
       }
     }
 
-    if (this.target && this.target.hp > 0 && this.collisionKnockbackCooldown === 0) {
+    if (this.target && this.target.hp > 0 && this.collisionKnockbackCooldown === 0 && !this.spikeBouncing) {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1239,33 +1239,29 @@ class Fighter {
 
         this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: this.slamWallEmpower };
 
-        // Bounce to adjacent wall (clockwise: bottom -> right -> top -> left -> bottom)
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 2.0; // Speed boost
-        let targetX, targetY;
+        // Bounce at acute angle (45 degrees) toward adjacent wall
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 2.5; // Higher speed boost
+        const currentAngle = Math.atan2(this.vy, this.vx);
 
+        // Determine bounce angle based on hit side (45 degrees from wall normal toward adjacent wall)
+        let bounceAngle;
         if (hitSide === 'bottom') {
-          // Bounce to right wall
-          targetX = arenaRight - 50;
-          targetY = this.y;
+          // Hit bottom wall, bounce 45 degrees toward right
+          bounceAngle = -Math.PI / 4; // 45 degrees up-right
         } else if (hitSide === 'right') {
-          // Bounce to top wall
-          targetX = this.x;
-          targetY = arenaTop + 50;
+          // Hit right wall, bounce 45 degrees toward top
+          bounceAngle = -3 * Math.PI / 4; // 45 degrees up-left
         } else if (hitSide === 'top') {
-          // Bounce to left wall
-          targetX = arenaLeft + 50;
-          targetY = this.y;
+          // Hit top wall, bounce 45 degrees toward left
+          bounceAngle = 3 * Math.PI / 4; // 45 degrees down-left
         } else if (hitSide === 'left') {
-          // Bounce to bottom wall
-          targetX = this.x;
-          targetY = arenaBottom - 50;
+          // Hit left wall, bounce 45 degrees toward bottom
+          bounceAngle = Math.PI / 4; // 45 degrees down-right
         }
 
-        const dx = targetX - this.x;
-        const dy = targetY - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        this.vx = (dx / dist) * speed;
-        this.vy = (dy / dist) * speed;
+        // No randomness - guaranteed acute angle bounce
+        this.vx = Math.cos(bounceAngle) * speed;
+        this.vy = Math.sin(bounceAngle) * speed;
 
         // Check if chain is complete
         if (this.spikeBounceCount >= this.spikeBounceTarget) {
