@@ -932,9 +932,12 @@ class Fighter {
     if (this.abilityFlash > 0) this.abilityFlash--;
     if (this.wallBounceFlash > 0) this.wallBounceFlash--;
 
-    this.vx *= FRICTION;
-    this.vy *= FRICTION;
-    
+    // Skip friction during spike bounce chain to ensure reaching adjacent wall
+    if (!this.spikeBouncing) {
+      this.vx *= FRICTION;
+      this.vy *= FRICTION;
+    }
+
     // Apply adaptation fatigue (Dodecahedron-specific)
     if (this.adaptationFatigue) {
       this.vx *= 0.7; // 30% slow
@@ -1237,7 +1240,7 @@ class Fighter {
         this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: this.slamWallEmpower };
 
         // Bounce to adjacent wall (clockwise: bottom -> right -> top -> left -> bottom)
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 1.3; // Speed boost
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 2.0; // Speed boost
         let targetX, targetY;
 
         if (hitSide === 'bottom') {
@@ -1267,6 +1270,7 @@ class Fighter {
         // Check if chain is complete
         if (this.spikeBounceCount >= this.spikeBounceTarget) {
           this.spikeChainComplete = true; // Chain complete, next hit deals huge knockback
+          this.spikeBouncing = false; // Re-enable AI after chain complete
         }
       }
     }
@@ -2485,6 +2489,7 @@ class Fighter {
       this.spikeBounceCount = 0; // Track bounce chain
       this.spikeBounceTarget = 2; // Need 2 more bounces (total 3 spikes)
       this.spikeChainComplete = false; // Track if chain is complete for knockback bonus
+      this.spikeBouncing = true; // Disable AI during bounce chain
       this.slamWallEmpower = false; // Consume empower
       this.cooldowns.skill3 = 150;
     }
@@ -2628,6 +2633,7 @@ class Fighter {
       case 'triangle':
         if (dist < 100 && speed > 5) { this.vx -= dx / dist * 0.5; this.vy -= dy / dist * 0.5; } break;
       case 'square':
+        if (this.spikeBouncing) break; // Skip AI movement during spike bounce chain
         if (avoidX !== 0 || avoidY !== 0) { this.vx -= avoidX * 0.2; this.vy -= avoidY * 0.2; }
         // Push enemy toward nearest spike wall if active
         if (this.construct && this.target && this.target.hp > 0) {
