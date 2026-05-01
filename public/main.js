@@ -1205,6 +1205,44 @@ class Fighter {
         this.bounceState = 'PLANNED';
       }
       this.bounceStateTimer = 60; // Reset after 60 frames
+
+      // Square spike bounce chain: after placing spike, bounce at acute angle and place more spikes
+      if (this.shapeType === 'square' && this.spikeBounceCount !== undefined && this.spikeBounceCount < this.spikeBounceTarget) {
+        this.spikeBounceCount++;
+        // Acute angle bounce: deflect velocity by 45 degrees
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        const currentAngle = Math.atan2(this.vy, this.vx);
+        const acuteAngle = currentAngle + (Math.random() > 0.5 ? Math.PI / 4 : -Math.PI / 4);
+        this.vx = Math.cos(acuteAngle) * speed * 1.2; // Slight speed boost
+        this.vy = Math.sin(acuteAngle) * speed * 1.2;
+
+        // Place additional spike on nearest wall
+        if (this.spikeBounceCount < this.spikeBounceTarget) {
+          const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+          const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+          const arenaRight = arenaLeft + ARENA_SIZE;
+          const arenaBottom = arenaTop + ARENA_SIZE;
+
+          const distLeft = this.x - arenaLeft;
+          const distRight = arenaRight - this.x;
+          const distTop = this.y - arenaTop;
+          const distBottom = arenaBottom - this.y;
+          const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+
+          let side, x, y, length, startX, startY;
+          if (minDist === distLeft) {
+            side = 'left'; x = arenaLeft; y = this.y; length = 150; startX = x; startY = y - length / 2;
+          } else if (minDist === distRight) {
+            side = 'right'; x = arenaRight; y = this.y; length = 150; startX = x; startY = y - length / 2;
+          } else if (minDist === distTop) {
+            side = 'top'; x = this.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
+          } else {
+            side = 'bottom'; x = this.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
+          }
+
+          this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: this.slamWallEmpower };
+        }
+      }
     }
 
     if (this.attackCooldown > 0) this.attackCooldown--;
@@ -2390,6 +2428,9 @@ class Fighter {
       if (this.constructCooldown > 0) return;
       if (this.cooldowns.skill3 > 0) return;
 
+      // 50/50 chance to place spike
+      if (Math.random() >= 0.5) return;
+
       this.triggerSkillVFX('skill3');
       const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
       const arenaTop = (canvas.height - ARENA_SIZE) / 2;
@@ -2414,7 +2455,9 @@ class Fighter {
         side = 'bottom'; x = this.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
       }
 
-      this.construct = { side, x, y, length, startX, startY, duration: 180, empowered: this.slamWallEmpower };
+      this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: this.slamWallEmpower };
+      this.spikeBounceCount = 0; // Track bounce chain
+      this.spikeBounceTarget = 2; // Need 2 more bounces (total 3 spikes)
       this.slamWallEmpower = false; // Consume empower
       this.cooldowns.skill3 = 150;
     }
@@ -2559,7 +2602,7 @@ class Fighter {
         if (dist < 100 && speed > 5) { this.vx -= dx / dist * 0.5; this.vy -= dy / dist * 0.5; } break;
       case 'square':
         if (avoidX !== 0 || avoidY !== 0) { this.vx -= avoidX * 0.2; this.vy -= avoidY * 0.2; }
-        // Push enemy toward spike wall if active
+        // Push enemy toward nearest spike wall if active
         if (this.construct && this.target && this.target.hp > 0) {
           const c = this.construct;
           let pushX = 0, pushY = 0;
@@ -2570,6 +2613,24 @@ class Fighter {
           // Bias movement toward the wall with spikes
           this.vx += pushX * 0.5;
           this.vy += pushY * 0.5;
+        }
+        // Also check other squares' spike walls and push toward nearest
+        for (const f of fighters) {
+          if (f === this || f.shapeType !== 'square' || !f.construct) continue;
+          const c = f.construct;
+          const dx = c.x - this.x;
+          const dy = c.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 300) { // Within range of spike wall
+            let pushX = 0, pushY = 0;
+            if (c.side === 'left') pushX = -1;
+            else if (c.side === 'right') pushX = 1;
+            else if (c.side === 'top') pushY = -1;
+            else if (c.side === 'bottom') pushY = 1;
+            // Push toward this spike wall
+            this.vx += pushX * 0.3;
+            this.vy += pushY * 0.3;
+          }
         }
         break;
       case 'oval':
