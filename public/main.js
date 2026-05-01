@@ -2276,49 +2276,6 @@ class Fighter {
       // Enhanced: pulses push enemies toward walls
       this.addEffect('wallPush', 1, 180);
 
-      // Auto-spawn spikes on corners where enemies are when ultimate is used
-      const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
-      const arenaTop = (canvas.height - ARENA_SIZE) / 2;
-      const arenaRight = arenaLeft + ARENA_SIZE;
-      const arenaBottom = arenaTop + ARENA_SIZE;
-      const cornerThreshold = 80;
-
-      // Check each corner for enemies and spawn spikes
-      for (const f of fighters) {
-        if (f === this || f.hp <= 0) continue;
-        const nearCorner = (f.x < arenaLeft + cornerThreshold || f.x > arenaRight - cornerThreshold) &&
-                          (f.y < arenaTop + cornerThreshold || f.y > arenaBottom - cornerThreshold);
-
-        if (nearCorner && !this.construct && this.constructCooldown === 0) {
-          // Determine nearest wall for the enemy
-          const enemyDistLeft = f.x - arenaLeft;
-          const enemyDistRight = arenaRight - f.x;
-          const enemyDistTop = f.y - arenaTop;
-          const enemyDistBottom = arenaBottom - f.y;
-          const minDist = Math.min(enemyDistLeft, enemyDistRight, enemyDistTop, enemyDistBottom);
-
-          let side, x, y, length, startX, startY;
-          if (minDist === enemyDistLeft) {
-            side = 'left'; x = arenaLeft; y = f.y; length = 150; startX = x; startY = y - length / 2;
-          } else if (minDist === enemyDistRight) {
-            side = 'right'; x = arenaRight; y = f.y; length = 150; startX = x; startY = y - length / 2;
-          } else if (minDist === enemyDistTop) {
-            side = 'top'; x = f.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
-          } else {
-            side = 'bottom'; x = f.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
-          }
-
-          this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: true };
-          this.constructCooldown = 180;
-          this.triggerSkillVFX('skill3');
-          spawnParticles(x, y, '#ff4444', 15, {
-            minSpeed: 3, maxSpeed: 8, shape: 'triangle', glow: true,
-            minDecay: 0.04, decayRange: 0.03
-          });
-          break; // Only spawn one spike wall per ultimate activation
-        }
-      }
-
       playSound('square_quake_start');
     } else if (this.shapeType === 'oval') {
       // Phase: leaves ghost trail that damages enemies
@@ -4355,13 +4312,14 @@ function handleCollisions(fighters) {
         }
       }
     }
-    // Quake Pulse: area knockback every 0.5s
+    // Quake Pulse: area knockback every 0.5s + auto-spawn spikes on corners
     const quakeEffect = f1.activeEffects.find(e => e.type === 'quakePulse');
     if (quakeEffect && quakeEffect.duration % 30 === 0) {
       const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
       const arenaTop = (canvas.height - ARENA_SIZE) / 2;
       const arenaRight = arenaLeft + ARENA_SIZE;
       const arenaBottom = arenaTop + ARENA_SIZE;
+      const cornerThreshold = 80;
 
       for (let j = 0; j < fighters.length; j++) {
         if (i === j) continue;
@@ -4386,6 +4344,31 @@ function handleCollisions(fighters) {
           const knockback = 15;
           f2.vx += pushX * knockback;
           f2.vy += pushY * knockback;
+
+          // Check if enemy is near corner and spawn spike
+          const nearCorner = (f2.x < arenaLeft + cornerThreshold || f2.x > arenaRight - cornerThreshold) &&
+                            (f2.y < arenaTop + cornerThreshold || f2.y > arenaBottom - cornerThreshold);
+
+          if (nearCorner && !f1.construct && f1.constructCooldown === 0) {
+            let side, x, y, length, startX, startY;
+            if (minDist === enemyDistLeft) {
+              side = 'left'; x = arenaLeft; y = f2.y; length = 150; startX = x; startY = y - length / 2;
+            } else if (minDist === enemyDistRight) {
+              side = 'right'; x = arenaRight; y = f2.y; length = 150; startX = x; startY = y - length / 2;
+            } else if (minDist === enemyDistTop) {
+              side = 'top'; x = f2.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
+            } else {
+              side = 'bottom'; x = f2.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
+            }
+
+            f1.construct = { side, x, y, length, startX, startY, duration: 240, empowered: true };
+            f1.constructCooldown = 180;
+            f1.triggerSkillVFX('skill3');
+            spawnParticles(x, y, '#ff4444', 15, {
+              minSpeed: 3, maxSpeed: 8, shape: 'triangle', glow: true,
+              minDecay: 0.04, decayRange: 0.03
+            });
+          }
         }
       }
     }

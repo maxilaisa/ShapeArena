@@ -388,20 +388,20 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 
 #### Ultimate: Quake Pulse
 - **Cooldown**: 300 frames (~5 seconds)
-- **Effect**: Area knockback pulse pushing enemies toward walls + auto-spawns spike walls on corners with enemies
+- **Effect**: Area knockback pulse pushing enemies toward walls + continuously spawns spike walls on corners with enemies
 - **Mechanics**:
   - Emits quake pulse for 180 frames (3 seconds)
   - Pulse triggers every 30 frames (0.5 seconds)
   - Knockback range: 200px
   - Pushes enemies toward their nearest wall with 15 knockback force
-  - When ultimate is activated, automatically checks all corners:
+  - During each pulse, automatically checks corners for enemies:
     - If any enemy is near a corner (within 80px of two walls), spawns a spike wall
     - Spike wall placed on the wall the enemy is closest to
     - Spike wall duration: 240 frames (4 seconds)
     - Construct cooldown: 180 frames
     - Visual feedback with red triangle particles
-    - Only one spike wall spawns per ultimate activation
-  - Combines immediate trap setup with continuous area control
+    - Can spawn multiple spike walls throughout ultimate duration
+  - Combines continuous trap setup with area control
   - Forces enemies into spike walls if active
 
 ### Visual Weapon: Fortress Shield
