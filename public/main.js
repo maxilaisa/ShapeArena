@@ -1209,66 +1209,6 @@ class Fighter {
       }
       this.bounceStateTimer = 60; // Reset after 60 frames
 
-      // Square spike bounce chain: after placing spike, bounce to adjacent wall and place more spikes
-      if (this.shapeType === 'square' && this.spikeBounceCount !== undefined && this.spikeBounceCount < this.spikeBounceTarget) {
-        this.spikeBounceCount++;
-
-        // Determine which wall we just hit
-        const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
-        const arenaTop = (canvas.height - ARENA_SIZE) / 2;
-        const arenaRight = arenaLeft + ARENA_SIZE;
-        const arenaBottom = arenaTop + ARENA_SIZE;
-
-        let hitSide;
-        if (this.x - this.radius <= arenaLeft + 5) hitSide = 'left';
-        else if (this.x + this.radius >= arenaRight - 5) hitSide = 'right';
-        else if (this.y - this.radius <= arenaTop + 5) hitSide = 'top';
-        else if (this.y + this.radius >= arenaBottom - 5) hitSide = 'bottom';
-
-        // Place spike on this wall
-        let side, x, y, length, startX, startY;
-        if (hitSide === 'left') {
-          side = 'left'; x = arenaLeft; y = this.y; length = 150; startX = x; startY = y - length / 2;
-        } else if (hitSide === 'right') {
-          side = 'right'; x = arenaRight; y = this.y; length = 150; startX = x; startY = y - length / 2;
-        } else if (hitSide === 'top') {
-          side = 'top'; x = this.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
-        } else if (hitSide === 'bottom') {
-          side = 'bottom'; x = this.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
-        }
-
-        this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: this.slamWallEmpower };
-
-        // Bounce at acute angle (45 degrees) toward adjacent wall
-        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 2.5; // Higher speed boost
-        const currentAngle = Math.atan2(this.vy, this.vx);
-
-        // Determine bounce angle based on hit side (45 degrees from wall normal toward adjacent wall)
-        let bounceAngle;
-        if (hitSide === 'bottom') {
-          // Hit bottom wall, bounce 45 degrees toward right
-          bounceAngle = -Math.PI / 4; // 45 degrees up-right
-        } else if (hitSide === 'right') {
-          // Hit right wall, bounce 45 degrees toward top
-          bounceAngle = -3 * Math.PI / 4; // 45 degrees up-left
-        } else if (hitSide === 'top') {
-          // Hit top wall, bounce 45 degrees toward left
-          bounceAngle = 3 * Math.PI / 4; // 45 degrees down-left
-        } else if (hitSide === 'left') {
-          // Hit left wall, bounce 45 degrees toward bottom
-          bounceAngle = Math.PI / 4; // 45 degrees down-right
-        }
-
-        // No randomness - guaranteed acute angle bounce
-        this.vx = Math.cos(bounceAngle) * speed;
-        this.vy = Math.sin(bounceAngle) * speed;
-
-        // Check if chain is complete
-        if (this.spikeBounceCount >= this.spikeBounceTarget) {
-          this.spikeChainComplete = true; // Chain complete, next hit deals huge knockback
-          this.spikeBouncing = false; // Re-enable AI after chain complete
-        }
-      }
     }
 
     if (this.attackCooldown > 0) this.attackCooldown--;
@@ -2182,8 +2122,7 @@ class Fighter {
       this.cooldowns.skill2 = 100;
       playSound('triangle_charge');
     } else if (this.shapeType === 'square') {
-      this.addEffect('slamShockwave', 1, 60); // Slam effect for 1 second
-      // Check if near wall to empower next construct
+      // Slam Shockwave: pushes enemies, and if pushed into corner, auto-spawns spike
       const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
       const arenaTop = (canvas.height - ARENA_SIZE) / 2;
       const arenaRight = arenaLeft + ARENA_SIZE;
@@ -2191,9 +2130,61 @@ class Fighter {
       const wallThreshold = 100;
       const nearWall = this.x < arenaLeft + wallThreshold || this.x > arenaRight - wallThreshold ||
                         this.y < arenaTop + wallThreshold || this.y > arenaBottom - wallThreshold;
-      if (nearWall) {
-        this.slamWallEmpower = true; // Next construct empowered
+
+      // Push nearby enemies toward nearest wall
+      for (const f of fighters) {
+        if (f === this || f.hp <= 0) continue;
+        const dx = f.x - this.x;
+        const dy = f.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 200) {
+          // Determine nearest wall for the enemy
+          const enemyDistLeft = f.x - arenaLeft;
+          const enemyDistRight = arenaRight - f.x;
+          const enemyDistTop = f.y - arenaTop;
+          const enemyDistBottom = arenaBottom - f.y;
+          const minDist = Math.min(enemyDistLeft, enemyDistRight, enemyDistTop, enemyDistBottom);
+
+          let pushX = 0, pushY = 0;
+          if (minDist === enemyDistLeft) pushX = -1;
+          else if (minDist === enemyDistRight) pushX = 1;
+          else if (minDist === enemyDistTop) pushY = -1;
+          else if (minDist === enemyDistBottom) pushY = 1;
+
+          const knockback = 15;
+          f.vx += pushX * knockback;
+          f.vy += pushY * knockback;
+
+          // Check if enemy is pushed into corner (near two walls)
+          const cornerThreshold = 80;
+          const nearCorner = (f.x < arenaLeft + cornerThreshold || f.x > arenaRight - cornerThreshold) &&
+                            (f.y < arenaTop + cornerThreshold || f.y > arenaBottom - cornerThreshold);
+
+          if (nearCorner && !this.construct && this.constructCooldown === 0) {
+            // Auto-spawn spike on the wall the enemy is closest to
+            let side, x, y, length, startX, startY;
+            if (minDist === enemyDistLeft) {
+              side = 'left'; x = arenaLeft; y = f.y; length = 150; startX = x; startY = y - length / 2;
+            } else if (minDist === enemyDistRight) {
+              side = 'right'; x = arenaRight; y = f.y; length = 150; startX = x; startY = y - length / 2;
+            } else if (minDist === enemyDistTop) {
+              side = 'top'; x = f.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
+            } else {
+              side = 'bottom'; x = f.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
+            }
+
+            this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: nearWall };
+            this.constructCooldown = 180;
+            this.triggerSkillVFX('skill3');
+            spawnParticles(x, y, '#ff4444', 15, {
+              minSpeed: 3, maxSpeed: 8, shape: 'triangle', glow: true,
+              minDecay: 0.04, decayRange: 0.03
+            });
+          }
+        }
       }
+
+      this.addEffect('slamShockwave', 1, 60); // Slam effect for 1 second
       this.cooldowns.skill2 = 120;
       playSound('square_slam');
     } else if (this.shapeType === 'oval') {
@@ -2448,14 +2439,11 @@ class Fighter {
       });
       this.cooldowns.skill3 = 120; // 2 seconds
     }
-    // Square-only: Spike Wall construct
+    // Square-only: Spike Wall construct (now auto-spawns via Skill 2, this is manual placement)
     else if (this.shapeType === 'square') {
       if (this.construct) return; // Max 1 construct
       if (this.constructCooldown > 0) return;
       if (this.cooldowns.skill3 > 0) return;
-
-      // 50/50 chance to place spike
-      if (Math.random() >= 0.5) return;
 
       this.triggerSkillVFX('skill3');
       const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
@@ -2482,10 +2470,6 @@ class Fighter {
       }
 
       this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: this.slamWallEmpower };
-      this.spikeBounceCount = 0; // Track bounce chain
-      this.spikeBounceTarget = 2; // Need 2 more bounces (total 3 spikes)
-      this.spikeChainComplete = false; // Track if chain is complete for knockback bonus
-      this.spikeBouncing = true; // Disable AI during bounce chain
       this.slamWallEmpower = false; // Consume empower
       this.cooldowns.skill3 = 150;
     }
@@ -4826,40 +4810,6 @@ function handleCollisions(fighters) {
                 f2.bounceState = 'NONE';
                 f2.bounceStateTimer = 0;
 
-                // Square: huge knockback if spike chain is complete
-                if (f2.shapeType === 'square' && f2.spikeChainComplete) {
-                  // Find nearest spike wall
-                  let nearestSpike = null;
-                  let nearestDist = Infinity;
-                  for (const f of fighters) {
-                    if (f.shapeType === 'square' && f.construct) {
-                      const c = f.construct;
-                      const dx = c.x - f1.x;
-                      const dy = c.y - f1.y;
-                      const dist = Math.sqrt(dx * dx + dy * dy);
-                      if (dist < nearestDist) {
-                        nearestDist = dist;
-                        nearestSpike = c;
-                      }
-                    }
-                  }
-                  if (nearestSpike) {
-                    // Apply huge knockback toward the spike wall
-                    let pushX = 0, pushY = 0;
-                    if (nearestSpike.side === 'left') pushX = -1;
-                    else if (nearestSpike.side === 'right') pushX = 1;
-                    else if (nearestSpike.side === 'top') pushY = -1;
-                    else if (nearestSpike.side === 'bottom') pushY = 1;
-                    f1.vx += pushX * 20; // Huge knockback
-                    f1.vy += pushY * 20;
-                    f2.spikeChainComplete = false; // Consume the bonus
-                    spawnParticles(f1.x, f1.y, '#ff4444', 20, {
-                      minSpeed: 5, maxSpeed: 12, shape: 'triangle', glow: true,
-                      minDecay: 0.03, decayRange: 0.02
-                    });
-                  }
-                }
-
                 // Star: gain speed stack on successful hit
                 if (f2.shapeType === 'star') {
                   f2.speedStacks = Math.min(f2.speedStacks + 1, f2.maxSpeedStacks);
@@ -4931,40 +4881,6 @@ function handleCollisions(fighters) {
                 // Reset bounce state after dealing damage
                 f1.bounceState = 'NONE';
                 f1.bounceStateTimer = 0;
-
-                // Square: huge knockback if spike chain is complete
-                if (f1.shapeType === 'square' && f1.spikeChainComplete) {
-                  // Find nearest spike wall
-                  let nearestSpike = null;
-                  let nearestDist = Infinity;
-                  for (const f of fighters) {
-                    if (f.shapeType === 'square' && f.construct) {
-                      const c = f.construct;
-                      const dx = c.x - f2.x;
-                      const dy = c.y - f2.y;
-                      const dist = Math.sqrt(dx * dx + dy * dy);
-                      if (dist < nearestDist) {
-                        nearestDist = dist;
-                        nearestSpike = c;
-                      }
-                    }
-                  }
-                  if (nearestSpike) {
-                    // Apply huge knockback toward the spike wall
-                    let pushX = 0, pushY = 0;
-                    if (nearestSpike.side === 'left') pushX = -1;
-                    else if (nearestSpike.side === 'right') pushX = 1;
-                    else if (nearestSpike.side === 'top') pushY = -1;
-                    else if (nearestSpike.side === 'bottom') pushY = 1;
-                    f2.vx += pushX * 20; // Huge knockback
-                    f2.vy += pushY * 20;
-                    f1.spikeChainComplete = false; // Consume the bonus
-                    spawnParticles(f2.x, f2.y, '#ff4444', 20, {
-                      minSpeed: 5, maxSpeed: 12, shape: 'triangle', glow: true,
-                      minDecay: 0.03, decayRange: 0.02
-                    });
-                  }
-                }
 
                 // Diamond: chain strike logic
                 if (f1.shapeType === 'diamond') {
