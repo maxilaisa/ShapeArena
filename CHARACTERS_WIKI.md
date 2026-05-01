@@ -134,46 +134,68 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 
 ### Abilities
 
+#### Basic Attack: Form Strike (Adaptive Poly-Core)
+- **Cooldown**: 25 frames (~0.4 seconds)
+- **Effect**: Form-specific basic attack
+- **Mechanics**:
+  - Attack changes based on current form:
+    - **Aggression (Spike Jab)**: Short forward stab with high knockback (8), 8 damage, bonus +5 damage if moving fast
+    - **Mobility (Blade Dash)**: Small forward slice + micro dash (2), 3 damage, great for repositioning
+    - **Precision (Prism Shot)**: Thin straight projectile, 5 damage, scales with prediction (+3 if predictionBoost active), low knockback (2)
+  - Requires movement to activate
+
 #### Skill 1: Adapt
 - **Cooldown**: 150 frames (~2.5 seconds)
-- **Effect**: Instantly switch to next form with stronger bonus
+- **Effect**: Instantly switch to next form with Perfect Adapt Bonus
 - **Mechanics**:
   - Skips to next form in cycle (unless form is locked)
+  - Can still use during formLockDelay period (20 frames after Face)
   - Resets form timer to full duration
+  - Smooth form transition: dampens velocity by 30% before switching
+  - Perfect Adapt Bonus for skillful switching:
+    - **Switching to Aggression near enemy (<150px)**: +20% extra impact (2.4x mass, +50% speed burst)
+    - **Switching to Mobility while moving fast (>7 speed)**: Extra dash burst (+3 velocity)
+    - **Switching to Precision while targeting**: Auto-aim assist for 30 frames
   - Grants form-specific bonus for 90 frames (1.5 seconds):
-    - **Aggression**: +2.0x mass multiplier, +30% speed burst
+    - **Aggression**: +2.0x mass multiplier (+2.4x with Perfect Adapt), +30% speed burst (+50% with Perfect Adapt)
     - **Mobility**: +speedBoost 20, drag reduction (0.5)
-    - **Precision**: +predictionBoost 2
-  - Becomes a timing tool, not a "fix my problem" button
+    - **Precision**: +predictionBoost 2 (+3 with Perfect Adapt)
+  - Becomes a skill expression tool, not a panic button
 
 #### Skill 2: Face
 - **Cooldown**: 126 frames (~2.1 seconds)
-- **Effect**: Convert missing HP into power, but lock current form
+- **Effect**: Convert missing HP into power with Delayed Lock
 - **Mechanics**:
-  - Power multiplier based on missing HP: 1 + (missingHP * 0.8)
-  - Up to 1.8x power at 0% HP
+  - Power multiplier based on missing HP: Math.max(1.2, 1 + (missingHP * 0.8))
+  - Minimum 1.2x power guaranteed, up to 1.8x at 0% HP
   - Form-specific power scaling for 90 frames:
     - **Aggression**: Mass multiplier (1.8x * powerMultiplier), +20% speed
     - **Mobility**: Speed boost (15 * powerMultiplier), drag reduction (0.4)
     - **Precision**: Prediction boost (1.5 * powerMultiplier)
-  - Locks current form for 90 frames (1.5 seconds)
-  - Cannot cycle during lock - wrong form commitment is punishable
+  - Delayed Lock: 20 frames (0.33s) to still Adapt before form locks
+  - Locks current form for 90 frames (1.5 seconds) after delay
+  - Cannot cycle during lock period - wrong form commitment is punishable
   - Risk-reward mechanic: higher HP = higher power but locked into form
 
 #### Ultimate: Transform
 - **Cooldown**: 300 frames (~5 seconds)
-- **Effect**: Perfect Adaptation Window
+- **Effect**: Perfect Adaptation Window + Adaptive Attacks
 - **Mechanics**:
   - Perfect Adaptation Window lasts 180 frames (3 seconds)
   - Gains all bonuses simultaneously:
     - +1.5x mass multiplier
     - +speedBoost 15
     - +predictionBoost 2
+  - Adaptive Attacks: Every basic attack cycles form automatically
+    - Hit 1 → Aggression (Spike Jab)
+    - Hit 2 → Mobility (Blade Dash)
+    - Hit 3 → Precision (Prism Shot)
+    - Repeats cycle
   - Form cycle pauses during the window
   - After window ends:
     - Adaptation fatigue: slowed by 30% for 60 frames (1 second)
     - Form cycle resumes
-  - Power spike + punish window = fair balance
+  - Power spike + adaptive cycling = insane damage potential
 
 ### Visual Weapon: Adaptive Poly-Core
 
@@ -325,30 +347,59 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 
 ### Abilities
 
+#### Basic Attack: Shield Bash
+- **Cooldown**: 30 frames (~0.5 seconds)
+- **Effect**: Cone knockback attack
+- **Mechanics**:
+  - Creates cone knockback in movement direction
+  - Cone angle: 60 degrees
+  - Range: 80 pixels
+  - Knockback force: 6
+  - Requires movement to activate
+
 #### Skill 1: Shield
 - **Cooldown**: 150 frames (~2.5 seconds)
-- **Effect**: 50% damage reduction
+- **Effect**: 50% damage reduction + mini shockwaves
 - **Mechanics**:
   - Grants damage reduction (0.5) for 120 frames (2 seconds)
   - Reduces all incoming damage by 50%
+  - Adds shieldShockwaves effect for 120 frames
+  - Basic attacks create mini shockwaves during effect
   - Passive defensive ability
 
 #### Skill 2: Slam
 - **Cooldown**: 120 frames (~2 seconds)
-- **Effect**: Slam shockwave on collision
+- **Effect**: Slam shockwave + wall empower
 - **Mechanics**:
   - Activates slam shockwave for 60 frames (1 second)
   - When speed drops significantly, triggers knockback
   - Knockback range: 150px
   - Damage scales with speed at time of slam
+  - If slam hits near a wall, empowers next construct
+  - Wall empower: +50% damage and +50% duration on next construct
+
+#### Skill 3: Spike Wall
+- **Cooldown**: 150 frames (~2.5 seconds)
+- **Effect**: Creates spike wall construct on nearest wall
+- **Mechanics**:
+  - Creates spike wall on nearest arena wall
+  - Spike length: 150 pixels
+  - Duration: 180 frames (3 seconds)
+  - If empowered by Slam: +50% damage and +50% duration
+  - Enemies near spike wall take bonus damage and bleed
+  - Bleed effect: 2 damage per frame for 60 frames
+  - Max 1 construct at a time
+  - Construct cooldown: 150 frames after duration ends
 
 #### Ultimate: Quake Pulse
 - **Cooldown**: 300 frames (~5 seconds)
-- **Effect**: Area knockback pulse every 0.5 seconds
+- **Effect**: Area knockback pulse pushing enemies toward walls
 - **Mechanics**:
   - Emits quake pulse for 180 frames (3 seconds)
   - Pulse triggers every 30 frames (0.5 seconds)
   - Knockback range: 200px
+  - Pushes enemies toward nearest wall
+  - Forces enemies into spike walls if active
   - Continuous area control
 
 ### Visual Weapon: Fortress Shield
@@ -356,6 +407,8 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 - **Visuals**:
   - Shield barrier during Shield ability
   - Shockwave rings during Slam and Quake Pulse
+  - Spike wall construct visualization on arena walls
+  - Fortress mode with corner fortifications during ultimate
 - **Theme**: Defensive, immovable, area control
 
 ---
@@ -411,31 +464,62 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 
 ### Abilities
 
+#### Basic Attack: Orbit Strike
+- **Cooldown**: 25 frames (~0.4 seconds)
+- **Effect**: Orbital projectile with slow
+- **Mechanics**:
+  - Fires orbital projectile from around the hexagon
+  - Projectile radius: 40 pixels from center
+  - Applies slow (0.3) to enemies hit for 30 frames
+  - Reduces enemy speed by 30%
+  - Low damage but consistent pressure
+
 #### Skill 1: Orbit
 - **Cooldown**: 130 frames (~2.17 seconds)
-- **Effect**: Precision strike with slow
+- **Effect**: Precision strike with slow + slow field trail
 - **Mechanics**:
   - Boosts velocity toward target at 1.5x speed
   - Applies slow (0.5) to target for 90 frames (1.5 seconds)
   - Reduces enemy speed by 50%
+  - Leaves slow field trail for 40 frames
+  - Slow field trail slows enemies in the path
   - Requires a target to activate
 
 #### Skill 2: Hex
 - **Cooldown**: 110 frames (~1.83 seconds)
-- **Effect**: Shield conversion from damage
+- **Effect**: Shield conversion + pulse burst on break
 - **Mechanics**:
   - Converts 50% of incoming damage to shield
   - Shield conversion lasts 120 frames (2 seconds)
   - Absorbs damage that would be taken
+  - Adds shieldPulseBurst effect for 120 frames
+  - When shield breaks, emits pulse burst damaging nearby enemies
+  - Pulse burst range: 100px, damage: 10
   - Passive defensive ability
+
+#### Skill 3: Slime Field
+- **Cooldown**: 150 frames (~2.5 seconds)
+- **Effect**: Creates slowing construct on the ground
+- **Mechanics**:
+  - Creates slime field at current position
+  - Field radius: 120 pixels
+  - Duration: 180 frames (3 seconds)
+  - Enemies in field are slowed by 40%
+  - Enemies in field have acceleration reduced by 30%
+  - Max 1 construct at a time
+  - Construct cooldown: 150 frames after duration ends
 
 #### Ultimate: Burst
 - **Cooldown**: 300 frames (~5 seconds)
-- **Effect**: Protective field reducing knockback
+- **Effect**: Protective field + construct buff + regen
 - **Mechanics**:
   - Grants knockback resistance (0.7) for 180 frames (3 seconds)
   - Reduces knockback by 70%
   - Slows self to 30% speed during effect
+  - Adds burstField effect for 180 frames
+  - BurstField grants minor regen (0.5 HP/frame) to allies
+  - BurstField further slows enemies in slime field
+  - If Slime Field is active, doubles its duration
   - Defensive positioning tool
 
 ### Visual Weapon: Protective Core
@@ -443,7 +527,9 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 - **Visuals**:
   - Protective field visualization during Burst
   - Shield barrier during Hex ability
-  - Slow effect visual on enemies during Orbit
+  - Slow field trail during Orbit
+  - Slime field construct on ground
+  - Pulse burst effect when shield breaks
 - **Theme**: Protective, supportive, defensive
 
 ---
@@ -457,38 +543,64 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 
 #### Skill 1: Vortex
 - **Cooldown**: 90 frames (~1.5 seconds)
-- **Effect**: Random directional pull
+- **Effect**: Creates pull at impact point, applies Unstable Mark
 - **Mechanics**:
-  - Applies random directional force
-  - Pulls enemies slightly in random direction
+  - Applies random directional force (8) to self
   - Adds chaos spin effect for 30 frames
-  - Vortex pull effect lasts 60 frames
+  - Vortex pull effect lasts 60 frames with force of 5
+  - Applies Unstable Mark to nearby enemies (150px range)
+  - Unstable Mark causes erratic enemy movement for 40 frames
 
 #### Skill 2: Curve
 - **Cooldown**: 130 frames (~2.17 seconds)
-- **Effect**: Multi-blink (2 small teleports)
+- **Effect**: Double blink + Chaos Residue
 - **Mechanics**:
   - First blink: 40px in current direction
   - Second blink: 30px in random offset direction
   - Unpredictable positioning
+  - Leaves Chaos Residue trail for 60 frames
+  - Chaos Residue distorts movement of enemies inside the residue area
   - Requires movement to activate
+
+#### Skill 3: Summon Wraith
+- **Cooldown**: 150 frames (~2.5 seconds)
+- **Effect**: Consumes 1 Soul to summon a Wraith
+- **Mechanics**:
+  - Requires 1 Soul to activate
+  - Max 2 Wraiths active at once
+  - Wraith HP: 25, damage multiplier: 0.85
+  - Wraith lifetime: 120 frames (2 seconds)
+  - Wraith attack cooldown: 30 frames
+  - Wraith speed: 6 (7.2 inside Tornado)
+  - Wraiths automatically seek and attack enemies
 
 #### Ultimate: Tornado
 - **Cooldown**: 300 frames (~5 seconds)
-- **Effect**: Moving chaos zone that follows you
+- **Effect**: Chaos zone + auto wraith summoning
 - **Mechanics**:
   - Creates chaos zone with 120px range
   - Zone follows the spiral as it moves
   - Applies chaos force (3) to enemies in zone
   - Lasts 180 frames (3 seconds)
   - Speed boost of 25 during effect
+  - Auto-consumes souls to summon wraiths (max 2 active)
+  - Wraiths inside tornado gain +20% speed
+
+### Soul System (Passive)
+- **Max Souls**: 2
+- **Passive Gain**: Gain 1 soul every 180 frames (3 seconds) if at 0 souls
+- **Soul Drops**: Enemies with Unstable Mark drop souls on death
+- **Soul Collection**: Spiral collects souls by passing near them
+- **Soul Lifetime**: 180 frames (3 seconds)
 
 ### Visual Weapon: Chaos Spinner
-- **Description**: Spinning shape with chaotic trails
+- **Description**: Rotating flail weapon with chaotic trails
 - **Visuals**:
-  - Chaotic movement patterns
-  - Tornado visualization during ultimate
-  - Random directional indicators during Vortex
+  - Rotating flail connected by chain
+  - Soul count indicator (small orbs around body)
+  - Wraiths appear as purple glowing entities
+  - Soul drops as purple glowing orbs
+  - Stable outer boundary + controlled rotating inner rings during Tornado
 - **Theme**: Unpredictable, chaotic, disorienting
 
 ---
@@ -656,20 +768,20 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 
 ## Cooldown Summary
 
-| Character | Skill 1 | Skill 2 | Ultimate |
-|-----------|---------|---------|----------|
-| Circle | 120 frames (~2s) | 90 frames (~1.5s) | 300 frames (~5s) |
-| Triangle | 150 frames (~2.5s) | 100 frames (~1.67s) | 300 frames (~5s) |
-| Square | 150 frames (~2.5s) | 120 frames (~2s) | 300 frames (~5s) |
-| Oval | 120 frames (~2s) | 100 frames (~1.67s) | 300 frames (~5s) |
-| Hexagon | 130 frames (~2.17s) | 110 frames (~1.83s) | 300 frames (~5s) |
-| Spiral | 90 frames (~1.5s) | 130 frames (~2.17s) | 300 frames (~5s) |
-| Rhombus | 140 frames (~2.33s) | 95 frames (~1.58s) | 300 frames (~5s) |
-| Star | 110 frames (~1.83s) | 115 frames (~1.92s) | 300 frames (~5s) |
-| Heart | 95 frames (~1.58s) | 100 frames (~1.67s) | 300 frames (~5s) |
-| Diamond | 130 frames (~2.2s) | 90 frames (~1.5s) | 300 frames (~5s) |
-| Crescent | 105 frames (~1.75s) | 100 frames (~1.67s) | 300 frames (~5s) |
-| Dodecahedron | 150 frames (~2.5s) | 126 frames (~2.1s) | 300 frames (~5s) |
+| Character | Skill 1 | Skill 2 | Skill 3 | Ultimate |
+|-----------|---------|---------|---------|----------|
+| Circle | 120 frames (~2s) | 90 frames (~1.5s) | N/A | 300 frames (~5s) |
+| Triangle | 150 frames (~2.5s) | 100 frames (~1.67s) | N/A | 300 frames (~5s) |
+| Square | 150 frames (~2.5s) | 120 frames (~2s) | 150 frames (~2.5s) | 300 frames (~5s) |
+| Oval | 120 frames (~2s) | 100 frames (~1.67s) | N/A | 300 frames (~5s) |
+| Hexagon | 130 frames (~2.17s) | 110 frames (~1.83s) | 150 frames (~2.5s) | 300 frames (~5s) |
+| Spiral | 90 frames (~1.5s) | 130 frames (~2.17s) | 150 frames (~2.5s) | 300 frames (~5s) |
+| Rhombus | 140 frames (~2.33s) | 95 frames (~1.58s) | N/A | 300 frames (~5s) |
+| Star | 110 frames (~1.83s) | 115 frames (~1.92s) | N/A | 300 frames (~5s) |
+| Heart | 95 frames (~1.58s) | 100 frames (~1.67s) | N/A | 300 frames (~5s) |
+| Diamond | 130 frames (~2.2s) | 90 frames (~1.5s) | N/A | 300 frames (~5s) |
+| Crescent | 105 frames (~1.75s) | 100 frames (~1.67s) | N/A | 300 frames (~5s) |
+| Dodecahedron | 150 frames (~2.5s) | 126 frames (~2.1s) | N/A | 300 frames (~5s) |
 
 ## AI System
 
