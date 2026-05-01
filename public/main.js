@@ -2122,7 +2122,9 @@ class Fighter {
       this.cooldowns.skill2 = 100;
       playSound('triangle_charge');
     } else if (this.shapeType === 'square') {
-      // Slam Shockwave: pushes enemies, and if pushed into corner, auto-spawns spike
+      // Slam Shockwave: creates shockwave when speed drops significantly
+      this.addEffect('slamShockwave', 1, 60); // Slam effect for 1 second
+      // Check if near wall to empower next construct
       const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
       const arenaTop = (canvas.height - ARENA_SIZE) / 2;
       const arenaRight = arenaLeft + ARENA_SIZE;
@@ -2130,61 +2132,9 @@ class Fighter {
       const wallThreshold = 100;
       const nearWall = this.x < arenaLeft + wallThreshold || this.x > arenaRight - wallThreshold ||
                         this.y < arenaTop + wallThreshold || this.y > arenaBottom - wallThreshold;
-
-      // Push nearby enemies toward nearest wall
-      for (const f of fighters) {
-        if (f === this || f.hp <= 0) continue;
-        const dx = f.x - this.x;
-        const dy = f.y - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 200) {
-          // Determine nearest wall for the enemy
-          const enemyDistLeft = f.x - arenaLeft;
-          const enemyDistRight = arenaRight - f.x;
-          const enemyDistTop = f.y - arenaTop;
-          const enemyDistBottom = arenaBottom - f.y;
-          const minDist = Math.min(enemyDistLeft, enemyDistRight, enemyDistTop, enemyDistBottom);
-
-          let pushX = 0, pushY = 0;
-          if (minDist === enemyDistLeft) pushX = -1;
-          else if (minDist === enemyDistRight) pushX = 1;
-          else if (minDist === enemyDistTop) pushY = -1;
-          else if (minDist === enemyDistBottom) pushY = 1;
-
-          const knockback = 15;
-          f.vx += pushX * knockback;
-          f.vy += pushY * knockback;
-
-          // Check if enemy is pushed into corner (near two walls)
-          const cornerThreshold = 80;
-          const nearCorner = (f.x < arenaLeft + cornerThreshold || f.x > arenaRight - cornerThreshold) &&
-                            (f.y < arenaTop + cornerThreshold || f.y > arenaBottom - cornerThreshold);
-
-          if (nearCorner && !this.construct && this.constructCooldown === 0) {
-            // Auto-spawn spike on the wall the enemy is closest to
-            let side, x, y, length, startX, startY;
-            if (minDist === enemyDistLeft) {
-              side = 'left'; x = arenaLeft; y = f.y; length = 150; startX = x; startY = y - length / 2;
-            } else if (minDist === enemyDistRight) {
-              side = 'right'; x = arenaRight; y = f.y; length = 150; startX = x; startY = y - length / 2;
-            } else if (minDist === enemyDistTop) {
-              side = 'top'; x = f.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
-            } else {
-              side = 'bottom'; x = f.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
-            }
-
-            this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: nearWall };
-            this.constructCooldown = 180;
-            this.triggerSkillVFX('skill3');
-            spawnParticles(x, y, '#ff4444', 15, {
-              minSpeed: 3, maxSpeed: 8, shape: 'triangle', glow: true,
-              minDecay: 0.04, decayRange: 0.03
-            });
-          }
-        }
+      if (nearWall) {
+        this.slamWallEmpower = true; // Next construct empowered
       }
-
-      this.addEffect('slamShockwave', 1, 60); // Slam effect for 1 second
       this.cooldowns.skill2 = 120;
       playSound('square_slam');
     } else if (this.shapeType === 'oval') {
@@ -4401,6 +4351,11 @@ function handleCollisions(fighters) {
     // Quake Pulse: area knockback every 0.5s
     const quakeEffect = f1.activeEffects.find(e => e.type === 'quakePulse');
     if (quakeEffect && quakeEffect.duration % 30 === 0) {
+      const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
+      const arenaTop = (canvas.height - ARENA_SIZE) / 2;
+      const arenaRight = arenaLeft + ARENA_SIZE;
+      const arenaBottom = arenaTop + ARENA_SIZE;
+
       for (let j = 0; j < fighters.length; j++) {
         if (i === j) continue;
         const f2 = fighters[j];
@@ -4408,9 +4363,49 @@ function handleCollisions(fighters) {
         const dx = f2.x - f1.x; const dy = f2.y - f1.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0 && dist < 200) {
-          const knockback = (200 - dist) / 15;
-          f2.vx += (dx / dist) * knockback;
-          f2.vy += (dy / dist) * knockback;
+          // Determine nearest wall for the enemy
+          const enemyDistLeft = f2.x - arenaLeft;
+          const enemyDistRight = arenaRight - f2.x;
+          const enemyDistTop = f2.y - arenaTop;
+          const enemyDistBottom = arenaBottom - f2.y;
+          const minDist = Math.min(enemyDistLeft, enemyDistRight, enemyDistTop, enemyDistBottom);
+
+          let pushX = 0, pushY = 0;
+          if (minDist === enemyDistLeft) pushX = -1;
+          else if (minDist === enemyDistRight) pushX = 1;
+          else if (minDist === enemyDistTop) pushY = -1;
+          else if (minDist === enemyDistBottom) pushY = 1;
+
+          const knockback = 15;
+          f2.vx += pushX * knockback;
+          f2.vy += pushY * knockback;
+
+          // Check if enemy is pushed into corner (near two walls)
+          const cornerThreshold = 80;
+          const nearCorner = (f2.x < arenaLeft + cornerThreshold || f2.x > arenaRight - cornerThreshold) &&
+                            (f2.y < arenaTop + cornerThreshold || f2.y > arenaBottom - cornerThreshold);
+
+          if (nearCorner && !f1.construct && f1.constructCooldown === 0) {
+            // Auto-spawn spike on the wall the enemy is closest to
+            let side, x, y, length, startX, startY;
+            if (minDist === enemyDistLeft) {
+              side = 'left'; x = arenaLeft; y = f2.y; length = 150; startX = x; startY = y - length / 2;
+            } else if (minDist === enemyDistRight) {
+              side = 'right'; x = arenaRight; y = f2.y; length = 150; startX = x; startY = y - length / 2;
+            } else if (minDist === enemyDistTop) {
+              side = 'top'; x = f2.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
+            } else {
+              side = 'bottom'; x = f2.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
+            }
+
+            f1.construct = { side, x, y, length, startX, startY, duration: 240, empowered: true };
+            f1.constructCooldown = 180;
+            f1.triggerSkillVFX('skill3');
+            spawnParticles(x, y, '#ff4444', 15, {
+              minSpeed: 3, maxSpeed: 8, shape: 'triangle', glow: true,
+              minDecay: 0.04, decayRange: 0.03
+            });
+          }
         }
       }
     }

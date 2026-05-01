@@ -369,18 +369,14 @@ This wiki documents all characters in Shape Arena, including their abilities, co
 
 #### Skill 2: Slam
 - **Cooldown**: 120 frames (~2 seconds)
-- **Effect**: Pushes enemies toward walls + auto-spawns spike wall on corner push
+- **Effect**: Slam shockwave + wall empower
 - **Mechanics**:
   - Activates slam shockwave for 60 frames (1 second)
-  - Pushes nearby enemies (200px range) toward their nearest wall
-  - Knockback force: 15
-  - If an enemy is pushed into a corner (within 80px of two walls):
-    - Auto-spawns spike wall on the wall the enemy is closest to
-    - Spike wall duration: 240 frames (4 seconds)
-    - Construct cooldown: 180 frames
-    - Visual feedback with red triangle particles
-  - Manual Spike Wall placement still available via Skill 3
-  - Combines crowd control with trap setup
+  - When speed drops significantly, triggers knockback
+  - Knockback range: 150px
+  - Damage scales with speed at time of slam
+  - If slam hits near a wall, empowers next construct
+  - Wall empower: +50% damage and +50% duration on next construct
 
 #### Skill 3: Spike Wall
 - **Cooldown**: 150 frames (~2.5 seconds)
@@ -389,22 +385,28 @@ This wiki documents all characters in Shape Arena, including their abilities, co
   - Creates spike wall on nearest arena wall
   - Spike length: 150 pixels
   - Duration: 240 frames (4 seconds)
+  - If empowered by Slam: +50% damage and +50% duration
   - Enemies near spike wall take bonus damage and bleed
   - Bleed effect: 2 damage per frame for 60 frames
   - Max 1 construct at a time
   - Construct cooldown: 150 frames after duration ends
-  - Note: Spike walls can also be auto-spawned via Slam when pushing enemies into corners
+  - Note: Spike walls can also be auto-spawned via Quake Pulse ultimate when pushing enemies into corners
 
 #### Ultimate: Quake Pulse
 - **Cooldown**: 300 frames (~5 seconds)
-- **Effect**: Area knockback pulse pushing enemies toward walls
+- **Effect**: Area knockback pulse pushing enemies toward walls + auto-spawns spike walls on corner push
 - **Mechanics**:
   - Emits quake pulse for 180 frames (3 seconds)
   - Pulse triggers every 30 frames (0.5 seconds)
   - Knockback range: 200px
-  - Pushes enemies toward nearest wall
+  - Pushes enemies toward their nearest wall with 15 knockback force
+  - If an enemy is pushed into a corner (within 80px of two walls):
+    - Auto-spawns spike wall on the wall the enemy is closest to
+    - Spike wall duration: 240 frames (4 seconds)
+    - Construct cooldown: 180 frames
+    - Visual feedback with red triangle particles
+  - Combines continuous area control with automatic trap setup
   - Forces enemies into spike walls if active
-  - Continuous area control
 
 ### Visual Weapon: Fortress Shield
 - **Description**: Heavy shield with shockwave effects
