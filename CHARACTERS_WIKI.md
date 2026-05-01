@@ -379,18 +379,12 @@ This wiki documents all characters in Shape Arena, including their abilities, co
   - Wall empower: +50% damage and +50% duration on next construct
 
 #### Skill 3: Spike Wall
-- **Cooldown**: 150 frames (~2.5 seconds)
-- **Effect**: Creates spike wall construct on nearest wall (manual placement)
+- **Cooldown**: N/A (Disabled)
+- **Effect**: Manual spike wall placement disabled
 - **Mechanics**:
-  - Creates spike wall on nearest arena wall
-  - Spike length: 150 pixels
-  - Duration: 240 frames (4 seconds)
-  - If empowered by Slam: +50% damage and +50% duration
-  - Enemies near spike wall take bonus damage and bleed
-  - Bleed effect: 2 damage per frame for 60 frames
-  - Max 1 construct at a time
-  - Construct cooldown: 150 frames after duration ends
-  - Note: Spike walls can also be auto-spawned via Quake Pulse ultimate when pushing enemies into corners
+  - This skill slot is now unused for Square
+  - Spike walls only spawn via Quake Pulse ultimate
+  - When Quake Pulse pushes enemies into corners, it auto-spawns spike walls
 
 #### Ultimate: Quake Pulse
 - **Cooldown**: 300 frames (~5 seconds)

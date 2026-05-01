@@ -932,11 +932,8 @@ class Fighter {
     if (this.abilityFlash > 0) this.abilityFlash--;
     if (this.wallBounceFlash > 0) this.wallBounceFlash--;
 
-    // Skip friction during spike bounce chain to ensure reaching adjacent wall
-    if (!this.spikeBouncing) {
-      this.vx *= FRICTION;
-      this.vy *= FRICTION;
-    }
+    this.vx *= FRICTION;
+    this.vy *= FRICTION;
 
     // Apply adaptation fatigue (Dodecahedron-specific)
     if (this.adaptationFatigue) {
@@ -1023,7 +1020,7 @@ class Fighter {
       }
     }
 
-    if (this.target && this.target.hp > 0 && this.collisionKnockbackCooldown === 0 && !this.spikeBouncing) {
+    if (this.target && this.target.hp > 0 && this.collisionKnockbackCooldown === 0) {
       const dx = this.target.x - this.x;
       const dy = this.target.y - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -2389,39 +2386,10 @@ class Fighter {
       });
       this.cooldowns.skill3 = 120; // 2 seconds
     }
-    // Square-only: Spike Wall construct (now auto-spawns via Skill 2, this is manual placement)
+    // Square-only: Spike Wall construct (only spawns via Quake Pulse ultimate)
     else if (this.shapeType === 'square') {
-      if (this.construct) return; // Max 1 construct
-      if (this.constructCooldown > 0) return;
-      if (this.cooldowns.skill3 > 0) return;
-
-      this.triggerSkillVFX('skill3');
-      const arenaLeft = (canvas.width - ARENA_SIZE) / 2;
-      const arenaTop = (canvas.height - ARENA_SIZE) / 2;
-      const arenaRight = arenaLeft + ARENA_SIZE;
-      const arenaBottom = arenaTop + ARENA_SIZE;
-
-      // Determine nearest wall
-      const distLeft = this.x - arenaLeft;
-      const distRight = arenaRight - this.x;
-      const distTop = this.y - arenaTop;
-      const distBottom = arenaBottom - this.y;
-      const minDist = Math.min(distLeft, distRight, distTop, distBottom);
-
-      let side, x, y, length, startX, startY;
-      if (minDist === distLeft) {
-        side = 'left'; x = arenaLeft; y = this.y; length = 150; startX = x; startY = y - length / 2;
-      } else if (minDist === distRight) {
-        side = 'right'; x = arenaRight; y = this.y; length = 150; startX = x; startY = y - length / 2;
-      } else if (minDist === distTop) {
-        side = 'top'; x = this.x; y = arenaTop; length = 150; startX = x - length / 2; startY = y;
-      } else {
-        side = 'bottom'; x = this.x; y = arenaBottom; length = 150; startX = x - length / 2; startY = y;
-      }
-
-      this.construct = { side, x, y, length, startX, startY, duration: 240, empowered: this.slamWallEmpower };
-      this.slamWallEmpower = false; // Consume empower
-      this.cooldowns.skill3 = 150;
+      // Manual placement disabled - spikes only spawn via Quake Pulse ultimate
+      // This skill slot is now unused for Square
     }
     // Hexagon-only: Slime Field construct
     else if (this.shapeType === 'hexagon') {
@@ -2543,15 +2511,11 @@ class Fighter {
       if (this.shapeType === 'spiral') {
         // Summon Wraith: use when have souls and need extra damage
         if (this.souls > 0 && this.wraiths.length < 2 && distToTarget < 150) this.useSkill3();
-      } else if (this.shapeType === 'square') {
-        // Spike Wall: use when near wall and construct available
-        const nearWall = this.x < arenaLeft + 100 || this.x > arenaRight - 100 ||
-                          this.y < arenaTop + 100 || this.y > arenaBottom - 100;
-        if (nearWall && !this.construct && this.constructCooldown === 0) this.useSkill3();
       } else if (this.shapeType === 'hexagon') {
         // Slime Field: use when construct available and enemies nearby
         if (!this.hexConstruct && this.hexConstructCooldown === 0 && distToTarget < 200) this.useSkill3();
       }
+      // Square Skill 3 (Spike Wall) disabled - only spawns via Quake Pulse ultimate
     }
   }
 
@@ -2563,7 +2527,6 @@ class Fighter {
       case 'triangle':
         if (dist < 100 && speed > 5) { this.vx -= dx / dist * 0.5; this.vy -= dy / dist * 0.5; } break;
       case 'square':
-        if (this.spikeBouncing) break; // Skip AI movement during spike bounce chain
         if (avoidX !== 0 || avoidY !== 0) { this.vx -= avoidX * 0.2; this.vy -= avoidY * 0.2; }
         // Push enemy toward nearest spike wall if active
         if (this.construct && this.target && this.target.hp > 0) {
@@ -5585,7 +5548,7 @@ function getSkillNames(shapeType) {
   const skillNames = {
     circle:       { skill1:'Dash',    skill2:'Spin',    ultimate:'Meteor'    },
     triangle:     { skill1:'Pierce',  skill2:'Charge',  ultimate:'Spike'     },
-    square:       { skill1:'Shield',  skill2:'Slam',    skill3:'Spike Wall', ultimate:'Quake'     },
+    square:       { skill1:'Shield',  skill2:'Slam',    skill3:'(Disabled)', ultimate:'Quake'     },
     oval:         { skill1:'Speed',   skill2:'Drift',   ultimate:'Phase'     },
     hexagon:      { skill1:'Orbit',   skill2:'Hex',     skill3:'Slime Field', ultimate:'Burst'     },
     spiral:       { skill1:'Vortex',  skill2:'Curve',   skill3:'Summon Wraith', ultimate:'Tornado'   },
